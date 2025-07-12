@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CloudUpload, FolderOpen, FileSpreadsheet, MoreVertical } from "lucide-react";
+import { CloudUpload, FolderOpen, FileSpreadsheet, MoreVertical, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Upload } from "@shared/schema";
@@ -107,6 +107,27 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
         <p className="text-sm text-gray-600 mt-1">
           Upload Excel files containing student grades and information
         </p>
+        <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs text-blue-800 font-medium mb-1">Expected Excel columns:</p>
+              <p className="text-xs text-blue-700">
+                Student ID, Student Name, Subject, Grade, Term (optional), Academic Year (optional)
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7 bg-white hover:bg-blue-50 border-blue-200"
+              onClick={() => {
+                window.open('/api/template/download', '_blank');
+              }}
+            >
+              <Download className="mr-1 h-3 w-3" />
+              Template
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       
       <CardContent className="space-y-6">

@@ -31,14 +31,15 @@ function validateGradeData(data: any[]) {
   const errors = [];
 
   for (const row of data) {
+    // More flexible column mapping to handle various Excel formats
     const validation = {
-      studentId: row.studentId || row['Student ID'] || row['student_id'],
-      studentName: row.studentName || row['Student Name'] || row['student_name'] || row.name,
-      subject: row.subject || row.Subject,
-      grade: row.grade || row.Grade,
-      term: row.term || row.Term || 'Q1',
-      academicYear: row.academicYear || row['Academic Year'] || row['academic_year'] || '2023-2024',
-      gpa: row.gpa || row.GPA || calculateGPA(row.grade || row.Grade),
+      studentId: row.studentId || row['Student ID'] || row['student_id'] || row['StudentID'] || row['ID'],
+      studentName: row.studentName || row['Student Name'] || row['student_name'] || row['Name'] || row['Full Name'] || row.name,
+      subject: row.subject || row.Subject || row['Subject Name'] || row['Course'],
+      grade: row.grade || row.Grade || row['Final Grade'] || row['Letter Grade'],
+      term: row.term || row.Term || row['Quarter'] || row['Semester'] || 'Q1',
+      academicYear: row.academicYear || row['Academic Year'] || row['academic_year'] || row['School Year'] || '2023-2024',
+      gpa: row.gpa || row.GPA || row['Grade Point'] || calculateGPA(row.grade || row.Grade || row['Final Grade'] || row['Letter Grade']),
     };
 
     const rowErrors = [];
@@ -78,6 +79,62 @@ function calculateGPA(grade: string): string {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
+  // Download sample Excel template
+  app.get("/api/template/download", async (req, res) => {
+    try {
+      // Create sample data
+      const sampleData = [
+        {
+          'Student ID': 'S001',
+          'Student Name': 'John Smith',
+          'Subject': 'Mathematics',
+          'Grade': 'A',
+          'Term': 'Q1',
+          'Academic Year': '2023-2024'
+        },
+        {
+          'Student ID': 'S001',
+          'Student Name': 'John Smith', 
+          'Subject': 'English',
+          'Grade': 'B+',
+          'Term': 'Q1',
+          'Academic Year': '2023-2024'
+        },
+        {
+          'Student ID': 'S002',
+          'Student Name': 'Jane Doe',
+          'Subject': 'Mathematics',
+          'Grade': 'A-',
+          'Term': 'Q1',
+          'Academic Year': '2023-2024'
+        },
+        {
+          'Student ID': 'S002',
+          'Student Name': 'Jane Doe',
+          'Subject': 'English',
+          'Grade': 'A',
+          'Term': 'Q1',
+          'Academic Year': '2023-2024'
+        }
+      ];
+
+      // Create workbook
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(sampleData);
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Student Results');
+
+      // Generate buffer
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="Student_Results_Template.xlsx"');
+      res.send(buffer);
+    } catch (error) {
+      console.error('Template generation error:', error);
+      res.status(500).json({ message: "Failed to generate template" });
+    }
+  });
+
   // Get dashboard stats
   app.get("/api/dashboard/stats", async (req, res) => {
     try {
