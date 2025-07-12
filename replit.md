@@ -4,6 +4,14 @@
 
 This is a full-stack TypeScript application built for managing academic report cards. The system allows users to upload Excel files containing student grade data, validate the data, approve uploads through an admin workflow, and generate PDF report cards. The application features a modern React frontend with a Node.js/Express backend, using PostgreSQL for data persistence.
 
+## Recent Changes
+
+**July 12, 2025**
+- Successfully migrated from Replit Agent to standard Replit environment
+- Enhanced data validation display to show one row per student with subjects as columns
+- Updated table format to display both scores and grades for each subject
+- All security practices maintained with proper client/server separation
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

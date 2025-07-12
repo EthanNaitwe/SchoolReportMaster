@@ -109,6 +109,37 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
     return acc;
   }, [] as { studentId: string; studentName: string }[]);
 
+  // Group grades by student for table display
+  const studentData = grades.reduce((acc, grade) => {
+    const existing = acc.find(s => s.studentId === grade.studentId);
+    if (existing) {
+      existing.subjects[grade.subject] = {
+        score: grade.numericGrade || '-',
+        grade: grade.grade,
+        isValid: grade.isValid,
+        validationError: grade.validationError
+      };
+    } else {
+      acc.push({
+        studentId: grade.studentId,
+        studentName: grade.studentName,
+        class: grade.class || '-',
+        subjects: {
+          [grade.subject]: {
+            score: grade.numericGrade || '-',
+            grade: grade.grade,
+            isValid: grade.isValid,
+            validationError: grade.validationError
+          }
+        }
+      });
+    }
+    return acc;
+  }, [] as any[]);
+
+  // Get all unique subjects for column headers
+  const allSubjects = [...new Set(grades.map(g => g.subject))].sort();
+
   return (
     <Card className="bg-white border border-gray-100 shadow-sm">
       <CardHeader>
@@ -157,70 +188,88 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
                       Name
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Subject
+                      Class
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Score
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Grade
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
+                    {allSubjects.map(subject => (
+                      <th key={subject} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        {subject}
+                      </th>
+                    ))}
+                    {allSubjects.map(subject => (
+                      <th key={`${subject}-grade`} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        {subject} Grade
+                      </th>
+                    ))}
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {grades.slice(0, 10).map((grade) => (
-                    <tr key={grade.id}>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-academic-text">
-                        {grade.studentId}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-academic-text">
-                        {grade.studentName}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-academic-text">
-                        {grade.subject}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-academic-text">
-                        {grade.numericGrade || '-'}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm">
-                        <span className={grade.isValid ? "text-academic-text" : "text-academic-error"}>
-                          {grade.grade}
-                        </span>
-                        {grade.validationError && (
-                          <div className="text-xs text-academic-error mt-1">
-                            {grade.validationError}
+                  {studentData.slice(0, 10).map((student) => {
+                    const hasErrors = Object.values(student.subjects).some((sub: any) => !sub.isValid);
+                    return (
+                      <tr key={student.studentId}>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-academic-text">
+                          {student.studentId}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-academic-text">
+                          {student.studentName}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-academic-text">
+                          {student.class}
+                        </td>
+                        {/* Subject scores */}
+                        {allSubjects.map(subject => {
+                          const subjectData = student.subjects[subject];
+                          return (
+                            <td key={subject} className="px-4 py-4 whitespace-nowrap text-sm text-center">
+                              <span className={subjectData && !subjectData.isValid ? "text-academic-error" : "text-academic-text"}>
+                                {subjectData ? subjectData.score : '-'}
+                              </span>
+                              {subjectData && subjectData.validationError && (
+                                <div className="text-xs text-academic-error mt-1">
+                                  {subjectData.validationError}
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                        {/* Subject grades */}
+                        {allSubjects.map(subject => {
+                          const subjectData = student.subjects[subject];
+                          return (
+                            <td key={`${subject}-grade`} className="px-4 py-4 whitespace-nowrap text-sm text-center">
+                              <span className={subjectData && !subjectData.isValid ? "text-academic-error" : "text-academic-text"}>
+                                {subjectData ? subjectData.grade : '-'}
+                              </span>
+                            </td>
+                          );
+                        })}
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="flex items-center space-x-2">
+                            <Badge className={`text-xs ${
+                              hasErrors 
+                                ? 'bg-academic-error text-white' 
+                                : 'bg-approval-green text-white'
+                            }`}>
+                              {hasErrors ? 'Error' : 'Valid'}
+                            </Badge>
+                            {!hasErrors && upload.status === 'approved' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => onGeneratePDF(upload.id, student.studentId)}
+                              >
+                                <Download className="h-3 w-3 mr-1" />
+                                PDF
+                              </Button>
+                            )}
                           </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <Badge className={`text-xs ${
-                          grade.isValid 
-                            ? 'bg-approval-green text-white' 
-                            : 'bg-academic-error text-white'
-                        }`}>
-                          {grade.isValid ? 'Valid' : 'Error'}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        {grade.isValid && upload.status === 'approved' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => onGeneratePDF(upload.id, grade.studentId)}
-                          >
-                            <Download className="h-3 w-3 mr-1" />
-                            PDF
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
