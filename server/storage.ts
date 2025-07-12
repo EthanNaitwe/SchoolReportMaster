@@ -157,6 +157,8 @@ export class MemStorage implements IStorage {
     const grade: Grade = { 
       ...insertGrade,
       gpa: insertGrade.gpa || null,
+      numericGrade: insertGrade.numericGrade || null,
+      class: insertGrade.class || null,
       id, 
       createdAt: new Date(),
       isValid: true,

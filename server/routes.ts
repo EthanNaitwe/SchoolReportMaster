@@ -23,43 +23,88 @@ const upload = multer({
   },
 });
 
-// Grade validation
-const validGrades = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F'];
+// Grade validation - supports both numeric (0-100) and letter grades
+const validLetterGrades = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F'];
+
+function isValidNumericGrade(grade: any): boolean {
+  const num = parseFloat(grade);
+  return !isNaN(num) && num >= 0 && num <= 100;
+}
+
+function convertNumericToLetterGrade(numericGrade: number): string {
+  if (numericGrade >= 97) return 'A+';
+  if (numericGrade >= 93) return 'A';
+  if (numericGrade >= 90) return 'A-';
+  if (numericGrade >= 87) return 'B+';
+  if (numericGrade >= 83) return 'B';
+  if (numericGrade >= 80) return 'B-';
+  if (numericGrade >= 77) return 'C+';
+  if (numericGrade >= 73) return 'C';
+  if (numericGrade >= 70) return 'C-';
+  if (numericGrade >= 67) return 'D+';
+  if (numericGrade >= 63) return 'D';
+  if (numericGrade >= 60) return 'D-';
+  return 'F';
+}
 
 function validateGradeData(data: any[]) {
   const validatedGrades = [];
   const errors = [];
 
   for (const row of data) {
-    // More flexible column mapping to handle various Excel formats
-    const validation = {
-      studentId: row.studentId || row['Student ID'] || row['student_id'] || row['StudentID'] || row['ID'],
-      studentName: row.studentName || row['Student Name'] || row['student_name'] || row['Name'] || row['Full Name'] || row.name,
-      subject: row.subject || row.Subject || row['Subject Name'] || row['Course'],
-      grade: row.grade || row.Grade || row['Final Grade'] || row['Letter Grade'],
-      term: row.term || row.Term || row['Quarter'] || row['Semester'] || 'Q1',
-      academicYear: row.academicYear || row['Academic Year'] || row['academic_year'] || row['School Year'] || '2023-2024',
-      gpa: row.gpa || row.GPA || row['Grade Point'] || calculateGPA(row.grade || row.Grade || row['Final Grade'] || row['Letter Grade']),
-    };
+    const studentId = row['Student ID'] || row.studentId || row['StudentID'] || row['ID'];
+    const studentName = row['Name'] || row['Student Name'] || row.studentName || row['Full Name'];
+    const studentClass = row['Class'] || row.class || row['Grade'] || row.grade;
+    const term = row.term || row.Term || row['Quarter'] || row['Semester'] || 'Q1';
+    const academicYear = row.academicYear || row['Academic Year'] || row['School Year'] || '2023-2024';
 
-    const rowErrors = [];
+    // Handle subjects as columns (Mathematics, English, Social Studies, Science, etc.)
+    const subjects = ['Mathematics', 'English', 'Social Studies', 'Science', 'History', 'Physics', 'Chemistry', 'Biology'];
     
-    if (!validation.studentId) rowErrors.push('Missing Student ID');
-    if (!validation.studentName) rowErrors.push('Missing Student Name');
-    if (!validation.subject) rowErrors.push('Missing Subject');
-    if (!validation.grade) rowErrors.push('Missing Grade');
-    if (validation.grade && !validGrades.includes(validation.grade)) {
-      rowErrors.push(`Invalid Grade: ${validation.grade}`);
-    }
+    for (const subject of subjects) {
+      const gradeValue = row[subject];
+      
+      if (gradeValue !== undefined && gradeValue !== null && gradeValue !== '') {
+        let letterGrade = '';
+        let numericGrade = gradeValue;
+        
+        // Convert numeric grade to letter grade if needed
+        if (isValidNumericGrade(gradeValue)) {
+          letterGrade = convertNumericToLetterGrade(parseFloat(gradeValue));
+        } else if (validLetterGrades.includes(gradeValue)) {
+          letterGrade = gradeValue;
+          numericGrade = gradeValue; // Keep original if already letter grade
+        }
 
-    if (rowErrors.length > 0) {
-      errors.push({
-        row: data.indexOf(row) + 1,
-        errors: rowErrors,
-        data: validation
-      });
-    } else {
-      validatedGrades.push(validation);
+        const validation = {
+          studentId: studentId,
+          studentName: studentName,
+          subject: subject,
+          grade: letterGrade,
+          numericGrade: numericGrade,
+          class: studentClass,
+          term: term,
+          academicYear: academicYear,
+          gpa: calculateGPA(letterGrade),
+        };
+
+        const rowErrors = [];
+        
+        if (!validation.studentId) rowErrors.push('Missing Student ID');
+        if (!validation.studentName) rowErrors.push('Missing Student Name');
+        if (!validation.grade) rowErrors.push(`Invalid ${subject} grade: ${gradeValue}`);
+
+        if (rowErrors.length > 0) {
+          errors.push({
+            row: data.indexOf(row) + 1,
+            errors: rowErrors,
+            data: validation,
+            subject: subject
+          });
+        } else {
+          validatedGrades.push(validation);
+        }
+      }
     }
   }
 
@@ -82,39 +127,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Download sample Excel template
   app.get("/api/template/download", async (req, res) => {
     try {
-      // Create sample data
+      // Create sample data matching the user's format
       const sampleData = [
         {
-          'Student ID': 'S001',
-          'Student Name': 'John Smith',
-          'Subject': 'Mathematics',
-          'Grade': 'A',
-          'Term': 'Q1',
-          'Academic Year': '2023-2024'
+          'Student ID': 'STU001',
+          'Name': 'John Doe',
+          'Class': 'S1A',
+          'Mathematics': 78,
+          'English': 82,
+          'Social Studies': 91,
+          'Science': 91
         },
         {
-          'Student ID': 'S001',
-          'Student Name': 'John Smith', 
-          'Subject': 'English',
-          'Grade': 'B+',
-          'Term': 'Q1',
-          'Academic Year': '2023-2024'
+          'Student ID': 'STU002',
+          'Name': 'Jane Mary',
+          'Class': 'S1A',
+          'Mathematics': 85,
+          'English': 79,
+          'Social Studies': 87,
+          'Science': 87
         },
         {
-          'Student ID': 'S002',
-          'Student Name': 'Jane Doe',
-          'Subject': 'Mathematics',
-          'Grade': 'A-',
-          'Term': 'Q1',
-          'Academic Year': '2023-2024'
-        },
-        {
-          'Student ID': 'S002',
-          'Student Name': 'Jane Doe',
-          'Subject': 'English',
-          'Grade': 'A',
-          'Term': 'Q1',
-          'Academic Year': '2023-2024'
+          'Student ID': 'STU003',
+          'Name': 'Alan Smith',
+          'Class': 'S1A',
+          'Mathematics': 90,
+          'English': 88,
+          'Social Studies': 95,
+          'Science': 95
         }
       ];
 
@@ -331,7 +371,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let yPosition = 300;
       doc.fontSize(12)
         .text('Subject', 50, yPosition)
-        .text('Grade', 200, yPosition)
+        .text('Score', 150, yPosition)
+        .text('Grade', 220, yPosition)
         .text('GPA', 300, yPosition);
 
       yPosition += 20;
@@ -340,7 +381,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       for (const grade of studentGrades) {
         doc.text(grade.subject, 50, yPosition)
-          .text(grade.grade, 200, yPosition)
+          .text(grade.numericGrade || '-', 150, yPosition)
+          .text(grade.grade, 220, yPosition)
           .text(grade.gpa || '0.0', 300, yPosition);
         yPosition += 20;
       }

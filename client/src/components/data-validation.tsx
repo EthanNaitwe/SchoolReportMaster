@@ -160,6 +160,9 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
                       Subject
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Score
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Grade
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -181,6 +184,9 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-academic-text">
                         {grade.subject}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-academic-text">
+                        {grade.numericGrade || '-'}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm">
                         <span className={grade.isValid ? "text-academic-text" : "text-academic-error"}>

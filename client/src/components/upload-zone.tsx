@@ -112,7 +112,10 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
             <div>
               <p className="text-xs text-blue-800 font-medium mb-1">Expected Excel columns:</p>
               <p className="text-xs text-blue-700">
-                Student ID, Student Name, Subject, Grade, Term (optional), Academic Year (optional)
+                Student ID, Name, Class, Mathematics, English, Social Studies, Science
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                Numeric grades (0-100) will be converted to letter grades automatically
               </p>
             </div>
             <Button
