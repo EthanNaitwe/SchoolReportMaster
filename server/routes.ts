@@ -212,7 +212,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Upload Excel file
   app.post("/api/uploads", upload.single('file'), async (req, res) => {
     try {
+      console.log('Upload request received');
+      console.log('Request headers:', req.headers);
+      console.log('File info:', req.file);
+      
       if (!req.file) {
+        console.log('No file found in request');
         return res.status(400).json({ message: "No file uploaded" });
       }
 

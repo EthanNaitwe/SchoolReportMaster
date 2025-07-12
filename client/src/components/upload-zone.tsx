@@ -27,7 +27,17 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await apiRequest('POST', '/api/uploads', formData);
+      const response = await fetch('/api/uploads', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Upload failed');
+      }
+      
       return response.json();
     },
     onSuccess: (data) => {
