@@ -124,8 +124,8 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
               <p className="text-xs text-blue-700">
                 Student ID, Name, Class, Mathematics, English, Social Studies, Science
               </p>
-              <p className="text-xs text-blue-600 mt-1">
-                Numeric grades (0-100) will be converted to letter grades automatically
+              <p className="text-xs text-blue-400 mt-1">
+                Marks (0-100) will be converted to letter grades (A+, A-, B+, ...) automatically
               </p>
             </div>
             <Button

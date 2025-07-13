@@ -39,10 +39,10 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <Button className="bg-academic-blue hover:bg-blue-700 text-white">
+              {/* <Button className="bg-academic-blue hover:bg-blue-700 text-white">
                 <Plus className="mr-2 h-4 w-4" />
                 New Upload
-              </Button>
+              </Button> */}
               <Button variant="outline" size="icon" className="bg-gray-100 hover:bg-gray-200">
                 <User className="h-4 w-4" />
               </Button>
