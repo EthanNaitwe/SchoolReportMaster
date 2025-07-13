@@ -418,6 +418,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Approve individual student record
+  app.post("/api/uploads/:uploadId/students/:studentId/approve", async (req, res) => {
+    try {
+      const uploadId = parseInt(req.params.uploadId);
+      const studentId = req.params.studentId;
+      
+      const grades = await storage.getGradesByUpload(uploadId);
+      const studentGrades = grades.filter(g => g.studentId === studentId);
+      
+      if (studentGrades.length === 0) {
+        return res.status(404).json({ message: "Student not found in this upload" });
+      }
+
+      // Update all grades for this student
+      const updatedGrades = [];
+      for (const grade of studentGrades) {
+        const updated = await storage.updateGrade(grade.id, {
+          status: 'approved',
+          reviewedBy: 'admin', // In a real app, get from auth
+          reviewedAt: new Date(),
+        });
+        if (updated) updatedGrades.push(updated);
+      }
+
+      res.json({ message: "Student record approved", grades: updatedGrades });
+    } catch (error) {
+      console.error('Student approval error:', error);
+      res.status(500).json({ message: "Failed to approve student record" });
+    }
+  });
+
+  // Reject individual student record with reason
+  app.post("/api/uploads/:uploadId/students/:studentId/reject", async (req, res) => {
+    try {
+      const uploadId = parseInt(req.params.uploadId);
+      const studentId = req.params.studentId;
+      const { reason } = req.body;
+      
+      if (!reason || reason.trim().length === 0) {
+        return res.status(400).json({ message: "Rejection reason is required" });
+      }
+
+      const grades = await storage.getGradesByUpload(uploadId);
+      const studentGrades = grades.filter(g => g.studentId === studentId);
+      
+      if (studentGrades.length === 0) {
+        return res.status(404).json({ message: "Student not found in this upload" });
+      }
+
+      // Update all grades for this student with rejection
+      const updatedGrades = [];
+      for (const grade of studentGrades) {
+        const updated = await storage.updateGrade(grade.id, {
+          status: 'rejected',
+          rejectionReason: reason,
+          reviewedBy: 'admin', // In a real app, get from auth
+          reviewedAt: new Date(),
+        });
+        if (updated) updatedGrades.push(updated);
+      }
+
+      res.json({ message: "Student record rejected", grades: updatedGrades });
+    } catch (error) {
+      console.error('Student rejection error:', error);
+      res.status(500).json({ message: "Failed to reject student record" });
+    }
+  });
+
   // Generate bulk reports for an upload
   app.post("/api/reports/bulk/:uploadId", async (req, res) => {
     try {

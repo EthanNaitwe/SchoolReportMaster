@@ -2,10 +2,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, X, Download } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Check, X, Download, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Upload, Grade } from "@shared/schema";
+import { useState } from "react";
 
 interface DataValidationProps {
   uploadId: number | null;
@@ -15,6 +19,9 @@ interface DataValidationProps {
 export default function DataValidation({ uploadId, onGeneratePDF }: DataValidationProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [rejectionDialogOpen, setRejectionDialogOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<{studentId: string, studentName: string} | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
 
   const { data: upload } = useQuery<Upload>({
     queryKey: ["/api/uploads", uploadId],
@@ -71,6 +78,78 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
     },
   });
 
+  const approveStudentMutation = useMutation({
+    mutationFn: async ({ uploadId, studentId }: { uploadId: number; studentId: string }) => {
+      const response = await apiRequest('POST', `/api/uploads/${uploadId}/students/${studentId}/approve`);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Student record approved",
+        description: "The student's grades have been approved.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/uploads", uploadId, "grades"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Approval failed",
+        description: error.message || "Failed to approve student record.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const rejectStudentMutation = useMutation({
+    mutationFn: async ({ uploadId, studentId, reason }: { uploadId: number; studentId: string; reason: string }) => {
+      const response = await apiRequest('POST', `/api/uploads/${uploadId}/students/${studentId}/reject`, {
+        reason
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Student record rejected",
+        description: "The student's grades have been rejected with feedback.",
+        variant: "destructive",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/uploads", uploadId, "grades"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      setRejectionDialogOpen(false);
+      setSelectedStudent(null);
+      setRejectionReason("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Rejection failed",
+        description: error.message || "Failed to reject student record.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleRejectStudent = (studentId: string, studentName: string) => {
+    setSelectedStudent({ studentId, studentName });
+    setRejectionDialogOpen(true);
+  };
+
+  const submitRejection = () => {
+    if (!selectedStudent || !rejectionReason.trim()) {
+      toast({
+        title: "Error",
+        description: "Please provide a reason for rejection.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    rejectStudentMutation.mutate({
+      uploadId: uploadId!,
+      studentId: selectedStudent.studentId,
+      reason: rejectionReason.trim()
+    });
+  };
+
   if (!uploadId || !upload) {
     return (
       <Card className="bg-white border border-gray-100 shadow-sm">
@@ -117,19 +196,32 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
         score: grade.numericGrade || '-',
         grade: grade.grade,
         isValid: grade.isValid,
-        validationError: grade.validationError
+        validationError: grade.validationError,
+        status: (grade as any).status || 'pending',
+        rejectionReason: (grade as any).rejectionReason
       };
+      // Update overall student status
+      if ((grade as any).status === 'rejected') {
+        existing.status = 'rejected';
+        existing.rejectionReason = (grade as any).rejectionReason;
+      } else if ((grade as any).status === 'approved' && existing.status !== 'rejected') {
+        existing.status = 'approved';
+      }
     } else {
       acc.push({
         studentId: grade.studentId,
         studentName: grade.studentName,
         class: grade.class || '-',
+        status: (grade as any).status || 'pending',
+        rejectionReason: (grade as any).rejectionReason,
         subjects: {
           [grade.subject]: {
             score: grade.numericGrade || '-',
             grade: grade.grade,
             isValid: grade.isValid,
-            validationError: grade.validationError
+            validationError: grade.validationError,
+            status: (grade as any).status || 'pending',
+            rejectionReason: (grade as any).rejectionReason
           }
         }
       });
@@ -247,15 +339,58 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
                           );
                         })}
                         <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="flex items-center space-x-2">
-                            <Badge className={`text-xs ${
-                              hasErrors 
-                                ? 'bg-academic-error text-white' 
-                                : 'bg-approval-green text-white'
-                            }`}>
-                              {hasErrors ? 'Error' : 'Valid'}
-                            </Badge>
-                            {!hasErrors && upload.status === 'approved' && (
+                          <div className="flex flex-col space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Badge className={`text-xs ${
+                                student.status === 'rejected' 
+                                  ? 'bg-red-500 text-white'
+                                  : student.status === 'approved'
+                                  ? 'bg-green-500 text-white'
+                                  : hasErrors 
+                                  ? 'bg-academic-error text-white' 
+                                  : 'bg-approval-green text-white'
+                              }`}>
+                                {student.status === 'rejected' 
+                                  ? 'Rejected' 
+                                  : student.status === 'approved' 
+                                  ? 'Approved' 
+                                  : hasErrors 
+                                  ? 'Error' 
+                                  : 'Valid'}
+                              </Badge>
+                              {student.status === 'rejected' && student.rejectionReason && (
+                                <div className="group relative">
+                                  <MessageSquare className="h-4 w-4 text-red-500 cursor-help" />
+                                  <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded p-2 whitespace-nowrap z-10 max-w-xs">
+                                    {student.rejectionReason}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {student.status === 'pending' && (
+                              <div className="flex space-x-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-green-600 border-green-600 hover:bg-green-50"
+                                  onClick={() => approveStudentMutation.mutate({ uploadId: upload.id, studentId: student.studentId })}
+                                  disabled={approveStudentMutation.isPending}
+                                >
+                                  <Check className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-red-600 border-red-600 hover:bg-red-50"
+                                  onClick={() => handleRejectStudent(student.studentId, student.studentName)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
+                            
+                            {student.status === 'approved' && upload.status === 'approved' && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -336,6 +471,53 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
           </>
         )}
       </CardContent>
+
+      {/* Rejection Dialog */}
+      <Dialog open={rejectionDialogOpen} onOpenChange={setRejectionDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reject Student Record</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium">Student: {selectedStudent?.studentName}</Label>
+              <p className="text-sm text-gray-600">ID: {selectedStudent?.studentId}</p>
+            </div>
+            <div>
+              <Label htmlFor="rejection-reason" className="text-sm font-medium">
+                Reason for rejection *
+              </Label>
+              <Textarea
+                id="rejection-reason"
+                placeholder="Please provide a clear explanation of why this record is being rejected so the uploader can fix the issues..."
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                className="mt-1"
+                rows={4}
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setRejectionDialogOpen(false);
+                  setSelectedStudent(null);
+                  setRejectionReason("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={submitRejection}
+                disabled={rejectStudentMutation.isPending || !rejectionReason.trim()}
+              >
+                {rejectStudentMutation.isPending ? "Rejecting..." : "Reject Record"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

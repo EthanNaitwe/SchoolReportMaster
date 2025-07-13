@@ -42,6 +42,10 @@ export const grades = pgTable("grades", {
   academicYear: text("academic_year").notNull(),
   isValid: boolean("is_valid").default(true),
   validationError: text("validation_error"),
+  status: text("status").default("pending"), // pending, approved, rejected
+  rejectionReason: text("rejection_reason"),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

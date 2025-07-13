@@ -118,3 +118,22 @@ Preferred communication style: Simple, everyday language.
 - **Type Safety**: End-to-end TypeScript with shared schema definitions
 
 The application is designed to handle the complete lifecycle of academic report generation, from data upload through final PDF delivery, with emphasis on data validation and administrative oversight.
+
+## Recent Changes
+
+### Migration to Replit Environment (July 12, 2025)
+- ✓ Successfully migrated from Replit Agent to standard Replit environment
+- ✓ Updated display format to show one row per student with all subjects and grades in separate columns
+- ✓ Added individual student record approval/rejection functionality with narration system
+- ✓ Enhanced data validation component with improved table layout matching academic report format
+- ✓ Implemented rejection dialog with mandatory feedback for record corrections
+- ✓ Extended database schema with student-level approval workflow tracking
+- ✓ Added status tracking (pending/approved/rejected) for individual student records
+- ✓ Enhanced UI with status badges, action buttons, and rejection reason tooltips
+
+### New Features Added
+- **Individual Record Management**: Admins can now approve or reject individual student records
+- **Rejection Narration System**: Required feedback when rejecting records to help uploaders fix issues
+- **Enhanced Table Display**: Student data now shows in academic report format with subjects as columns
+- **Status Tracking**: Visual indicators for record status with hover tooltips for rejection reasons
+- **Improved Workflow**: Granular control over data validation and approval process

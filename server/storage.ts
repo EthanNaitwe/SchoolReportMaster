@@ -162,7 +162,11 @@ export class MemStorage implements IStorage {
       id, 
       createdAt: new Date(),
       isValid: true,
-      validationError: null
+      validationError: null,
+      status: 'pending',
+      rejectionReason: null,
+      reviewedBy: null,
+      reviewedAt: null
     };
     this.grades.set(id, grade);
     return grade;
