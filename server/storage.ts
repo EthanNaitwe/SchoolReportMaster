@@ -4,17 +4,26 @@ import {
   type Upload, type InsertUpload,
   type Grade, type InsertGrade,
   type ReportCard, type InsertReportCard,
-  type User, type UpsertUser
+  type User, type InsertUser
 } from "@shared/schema";
 import { google } from 'googleapis';
 import type { sheets_v4 } from 'googleapis';
 import { db } from "./db";
 import { eq } from "drizzle-orm";
+import connectPg from 'connect-pg-simple';
+import session from 'express-session';
+import createMemoryStore from 'memorystore';
 
 export interface IStorage {
-  // Users (required for Replit Auth)
-  getUser(id: string): Promise<User | undefined>;
-  upsertUser(user: UpsertUser): Promise<User>;
+  // Users (required for auth)
+  getUser(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined>;
+  
+  // Session storage
+  sessionStore: any;
   
   // Students
   getStudent(id: number): Promise<Student | undefined>;
@@ -55,23 +64,51 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  // Users (required for Replit Auth)
-  async getUser(id: string): Promise<User | undefined> {
+  sessionStore: any;
+
+  constructor() {
+    try {
+      const PostgresSessionStore = connectPg(session);
+      this.sessionStore = new PostgresSessionStore({
+        conString: process.env.DATABASE_URL,
+        createTableIfMissing: true,
+      });
+    } catch (error) {
+      console.warn('Failed to initialize PostgreSQL session store:', error);
+      // Fallback to a simple memory store for development
+      const MemoryStore = createMemoryStore(session);
+      this.sessionStore = new MemoryStore({
+        checkPeriod: 86400000,
+      });
+    }
+  }
+
+  // Users (required for auth)
+  async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
-  async upsertUser(userData: UpsertUser): Promise<User> {
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async createUser(userData: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values(userData).returning();
+    return user;
+  }
+
+  async updateUser(id: number, userData: Partial<InsertUser>): Promise<User | undefined> {
     const [user] = await db
-      .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
-      })
+      .update(users)
+      .set({ ...userData, updatedAt: new Date() })
+      .where(eq(users.id, id))
       .returning();
     return user;
   }
@@ -221,42 +258,77 @@ export class DatabaseStorage implements IStorage {
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+  sessionStore: any;
+  private users: Map<number, User>;
   private students: Map<number, Student>;
   private uploads: Map<number, Upload>;
   private grades: Map<number, Grade>;
   private reportCards: Map<number, ReportCard>;
+  private currentUserId: number;
   private currentStudentId: number;
   private currentUploadId: number;
   private currentGradeId: number;
   private currentReportCardId: number;
 
   constructor() {
+    try {
+      const MemoryStore = createMemoryStore(session);
+      this.sessionStore = new MemoryStore({
+        checkPeriod: 86400000,
+      });
+    } catch (error) {
+      console.warn('Failed to initialize session store:', error);
+      this.sessionStore = new Map();
+    }
+
     this.users = new Map();
     this.students = new Map();
     this.uploads = new Map();
     this.grades = new Map();
     this.reportCards = new Map();
+    this.currentUserId = 1;
     this.currentStudentId = 1;
     this.currentUploadId = 1;
     this.currentGradeId = 1;
     this.currentReportCardId = 1;
   }
 
-  // Users (required for Replit Auth)
-  async getUser(id: string): Promise<User | undefined> {
+  // Users (required for auth)
+  async getUser(id: number): Promise<User | undefined> {
     return this.users.get(id);
   }
 
-  async upsertUser(userData: UpsertUser): Promise<User> {
-    const existing = this.users.get(userData.id);
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => u.username === username);
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => u.email === email);
+  }
+
+  async createUser(userData: InsertUser): Promise<User> {
+    const id = this.currentUserId++;
     const user: User = {
       ...userData,
-      createdAt: existing?.createdAt || new Date(),
+      id,
+      createdAt: new Date(),
       updatedAt: new Date(),
     };
-    this.users.set(userData.id, user);
+    this.users.set(id, user);
     return user;
+  }
+
+  async updateUser(id: number, userData: Partial<InsertUser>): Promise<User | undefined> {
+    const existing = this.users.get(id);
+    if (!existing) return undefined;
+    
+    const updated: User = {
+      ...existing,
+      ...userData,
+      updatedAt: new Date(),
+    };
+    this.users.set(id, updated);
+    return updated;
   }
 
   // Students

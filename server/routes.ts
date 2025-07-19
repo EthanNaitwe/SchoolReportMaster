@@ -130,7 +130,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
       res.json(user);
     } catch (error) {
@@ -241,7 +241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         originalName: req.file.originalname,
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
-        uploadedBy: 'admin', // In a real app, get from auth
+        uploadedBy: req.user?.username || 'unknown', // Get from authenticated user
         status: 'pending' as const,
       };
 
@@ -276,7 +276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get grades for an upload
-  app.get("/api/uploads/:id/grades", async (req, res) => {
+  app.get("/api/uploads/:id/grades", isAuthenticated, async (req, res) => {
     try {
       const uploadId = parseInt(req.params.id);
       const grades = await storage.getGradesByUpload(uploadId);
@@ -287,13 +287,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Approve upload
-  app.post("/api/uploads/:id/approve", async (req, res) => {
+  app.post("/api/uploads/:id/approve", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const upload = await storage.updateUpload(id, {
         status: 'approved',
         approvedAt: new Date(),
-        approvedBy: 'admin', // In a real app, get from auth
+        approvedBy: req.user?.username || 'unknown', // Get from authenticated user
       });
 
       if (!upload) {
@@ -307,13 +307,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Reject upload
-  app.post("/api/uploads/:id/reject", async (req, res) => {
+  app.post("/api/uploads/:id/reject", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const upload = await storage.updateUpload(id, {
         status: 'rejected',
         approvedAt: new Date(),
-        approvedBy: 'admin', // In a real app, get from auth
+        approvedBy: req.user?.username || 'unknown', // Get from authenticated user
       });
 
       if (!upload) {
@@ -327,7 +327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate PDF report for a student
-  app.post("/api/reports/generate", async (req, res) => {
+  app.post("/api/reports/generate", isAuthenticated, async (req, res) => {
     try {
       const { uploadId, studentId } = req.body;
 
@@ -424,7 +424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all report cards
-  app.get("/api/reports", async (req, res) => {
+  app.get("/api/reports", isAuthenticated, async (req, res) => {
     try {
       const reportCards = await storage.getAllReportCards();
       res.json(reportCards);
@@ -434,7 +434,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Approve individual student record
-  app.post("/api/uploads/:uploadId/students/:studentId/approve", async (req, res) => {
+  app.post("/api/uploads/:uploadId/students/:studentId/approve", isAuthenticated, async (req, res) => {
     try {
       const uploadId = parseInt(req.params.uploadId);
       const studentId = req.params.studentId;
@@ -451,7 +451,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const grade of studentGrades) {
         const updated = await storage.updateGrade(grade.id, {
           status: 'approved',
-          reviewedBy: 'admin', // In a real app, get from auth
+          reviewedBy: req.user?.username || 'unknown', // Get from authenticated user
           reviewedAt: new Date(),
         });
         if (updated) updatedGrades.push(updated);
@@ -465,7 +465,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Reject individual student record with reason
-  app.post("/api/uploads/:uploadId/students/:studentId/reject", async (req, res) => {
+  app.post("/api/uploads/:uploadId/students/:studentId/reject", isAuthenticated, async (req, res) => {
     try {
       const uploadId = parseInt(req.params.uploadId);
       const studentId = req.params.studentId;
@@ -488,7 +488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const updated = await storage.updateGrade(grade.id, {
           status: 'rejected',
           rejectionReason: reason,
-          reviewedBy: 'admin', // In a real app, get from auth
+          reviewedBy: req.user?.username || 'unknown', // Get from authenticated user
           reviewedAt: new Date(),
         });
         if (updated) updatedGrades.push(updated);
@@ -502,7 +502,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate bulk reports for an upload
-  app.post("/api/reports/bulk/:uploadId", async (req, res) => {
+  app.post("/api/reports/bulk/:uploadId", isAuthenticated, async (req, res) => {
     try {
       const uploadId = parseInt(req.params.uploadId);
       const upload = await storage.getUpload(uploadId);
@@ -527,7 +527,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             term: studentInfo.term,
             academicYear: studentInfo.academicYear,
             uploadId: uploadId,
-            generatedBy: 'admin',
+            generatedBy: req.user?.username || 'unknown',
           });
           reportCards.push(reportCard);
         }
