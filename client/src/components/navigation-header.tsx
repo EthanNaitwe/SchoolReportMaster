@@ -32,7 +32,7 @@ export default function NavigationHeader() {
                 <GraduationCap className="text-white h-6 w-6" />
               </div>
               <div>
-                <h1 className="text-xl font-medium text-academic-text">Academic Report System</h1>
+                <h1 className="text-xl font-medium text-academic-text">Tamayuz Report System</h1>
                 <p className="text-sm text-gray-500">Report Card Management</p>
               </div>
             </Link>

@@ -1,4 +1,4 @@
-# Academic Report System
+# Tamayuz Report System
 
 ## Overview
 

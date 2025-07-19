@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(["/api/user"], user);
       toast({
         title: "Account created!",
-        description: "Welcome to the Academic Report System.",
+        description: "Welcome to the Tamayuz Report System.",
       });
     },
     onError: (error: Error) => {

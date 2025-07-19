@@ -80,7 +80,7 @@ export default function AuthPage() {
           <div className="text-center mb-8">
             <div className="flex items-center justify-center mb-4">
               <GraduationCap className="h-8 w-8 text-primary mr-2" />
-              <h1 className="text-2xl font-bold">Academic Report System</h1>
+              <h1 className="text-2xl font-bold">Tamayuz Report System</h1>
             </div>
             <p className="text-muted-foreground">
               Sign in to manage student reports and academic data
@@ -149,7 +149,7 @@ export default function AuthPage() {
                 <CardHeader>
                   <CardTitle>Create account</CardTitle>
                   <CardDescription>
-                    Register for access to the Academic Report System
+                    Register for access to the Tamayuz Report System
                   </CardDescription>
                 </CardHeader>
                 <form onSubmit={registerForm.handleSubmit(onRegister)}>
