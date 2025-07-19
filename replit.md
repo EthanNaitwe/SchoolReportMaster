@@ -35,10 +35,10 @@ Preferred communication style: Simple, everyday language.
 - **Validation**: Zod for schema validation
 
 ### Data Storage
-- **Database**: PostgreSQL with Neon serverless
-- **ORM**: Drizzle ORM with schema-first approach
+- **Database**: Google Sheets with googleapis integration
+- **Storage Implementation**: GoogleSheetsStorage class implementing IStorage interface
 - **Schema Location**: Shared schema definitions in `/shared/schema.ts`
-- **Migrations**: Drizzle Kit for database migrations
+- **Sheet Structure**: Each database table maps to a separate sheet (students, uploads, grades, report_cards)
 
 ## Key Components
 

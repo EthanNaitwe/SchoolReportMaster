@@ -5,6 +5,8 @@ import {
   type Grade, type InsertGrade,
   type ReportCard, type InsertReportCard
 } from "@shared/schema";
+import { google } from 'googleapis';
+import type { sheets_v4 } from 'googleapis';
 
 export interface IStorage {
   // Students
@@ -256,4 +258,759 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class GoogleSheetsStorage implements IStorage {
+  private sheets: sheets_v4.Sheets;
+  private spreadsheetId: string;
+  private auth: any;
+  private initialized: boolean = false;
+  private initPromise: Promise<void> | null = null;
+
+  constructor() {
+    this.spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID!;
+    
+    // Initialize Google Sheets API with service account credentials
+    const clientEmail = process.env.GOOGLE_SHEETS_CLIENT_EMAIL!;
+    let privateKey = process.env.GOOGLE_SHEETS_PRIVATE_KEY!;
+    
+    // Handle various private key formats
+    if (privateKey.includes('\\n')) {
+      privateKey = privateKey.replace(/\\n/g, '\n');
+    }
+    
+    // Try to clean up the private key if it appears to be encoded
+    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+      privateKey = privateKey.slice(1, -1);
+      privateKey = privateKey.replace(/\\n/g, '\n');
+    }
+    
+    // Ensure proper formatting
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+      throw new Error('Invalid private key format. Make sure the private key is properly formatted.');
+    }
+    
+    this.auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: clientEmail,
+        private_key: privateKey,
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    
+    this.sheets = google.sheets({ version: 'v4', auth: this.auth });
+    
+    // Don't initialize immediately - do it on first use
+    console.log('Google Sheets storage created, will initialize on first use');
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    if (this.initialized) return;
+    
+    if (this.initPromise) {
+      await this.initPromise;
+      return;
+    }
+
+    this.initPromise = this.initializeSheets();
+    await this.initPromise;
+  }
+
+  private async initializeSheets(): Promise<void> {
+    try {
+      console.log('Initializing Google Sheets connection...');
+      
+      // Test the connection first
+      const response = await this.sheets.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
+      });
+      
+      console.log(`Connected to spreadsheet: ${response.data.properties?.title}`);
+
+      const existingSheets = response.data.sheets?.map(sheet => sheet.properties?.title) || [];
+      const requiredSheets = ['students', 'uploads', 'grades', 'report_cards'];
+
+      // Create missing sheets
+      for (const sheetName of requiredSheets) {
+        if (!existingSheets.includes(sheetName)) {
+          console.log(`Creating sheet: ${sheetName}`);
+          await this.createSheet(sheetName);
+        }
+      }
+
+      // Initialize headers for each sheet
+      await this.initializeHeaders();
+      
+      this.initialized = true;
+      console.log('Google Sheets initialized successfully');
+    } catch (error) {
+      console.error('Error initializing Google Sheets:', error);
+      this.initPromise = null; // Reset so we can retry
+      throw error;
+    }
+  }
+
+  private async createSheet(title: string) {
+    try {
+      await this.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: this.spreadsheetId,
+        requestBody: {
+          requests: [{
+            addSheet: {
+              properties: { title }
+            }
+          }]
+        }
+      });
+    } catch (error) {
+      console.error(`Error creating sheet ${title}:`, error);
+    }
+  }
+
+  private async initializeHeaders() {
+    const headers = {
+      students: ['id', 'studentId', 'name', 'grade', 'class', 'createdAt'],
+      uploads: ['id', 'filename', 'originalName', 'fileSize', 'mimeType', 'status', 'uploadedBy', 'uploadedAt', 'approvedAt', 'approvedBy', 'validationResults', 'errorCount', 'validCount', 'totalCount'],
+      grades: ['id', 'uploadId', 'studentId', 'studentName', 'subject', 'grade', 'numericGrade', 'gpa', 'class', 'term', 'academicYear', 'isValid', 'validationError', 'status', 'rejectionReason', 'reviewedBy', 'reviewedAt', 'createdAt'],
+      report_cards: ['id', 'studentId', 'studentName', 'grade', 'class', 'term', 'academicYear', 'pdfPath', 'generatedAt', 'generatedBy', 'uploadId']
+    };
+
+    for (const [sheetName, headerRow] of Object.entries(headers)) {
+      try {
+        // Check if headers exist
+        const { data } = await this.sheets.spreadsheets.values.get({
+          spreadsheetId: this.spreadsheetId,
+          range: `${sheetName}!A1:Z1`,
+        });
+
+        if (!data.values || data.values.length === 0 || data.values[0].length === 0) {
+          // Add headers
+          await this.sheets.spreadsheets.values.update({
+            spreadsheetId: this.spreadsheetId,
+            range: `${sheetName}!A1`,
+            valueInputOption: 'RAW',
+            requestBody: {
+              values: [headerRow]
+            }
+          });
+        }
+      } catch (error) {
+        console.error(`Error initializing headers for ${sheetName}:`, error);
+      }
+    }
+  }
+
+  private async getNextId(sheetName: string): Promise<number> {
+    try {
+      const { data } = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: `${sheetName}!A:A`,
+      });
+
+      if (!data.values || data.values.length <= 1) return 1;
+      
+      const ids = data.values.slice(1).map(row => parseInt(row[0]) || 0).filter(id => id > 0);
+      return ids.length > 0 ? Math.max(...ids) + 1 : 1;
+    } catch (error) {
+      console.error(`Error getting next ID for ${sheetName}:`, error);
+      return 1;
+    }
+  }
+
+  private async appendRow(sheetName: string, values: any[]): Promise<void> {
+    try {
+      await this.sheets.spreadsheets.values.append({
+        spreadsheetId: this.spreadsheetId,
+        range: `${sheetName}!A:Z`,
+        valueInputOption: 'RAW',
+        requestBody: {
+          values: [values]
+        }
+      });
+    } catch (error) {
+      console.error(`Error appending row to ${sheetName}:`, error);
+      throw error;
+    }
+  }
+
+  private async findRowByColumn(sheetName: string, columnIndex: number, value: any): Promise<{ row: any[], rowIndex: number } | null> {
+    try {
+      const { data } = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: `${sheetName}!A:Z`,
+      });
+
+      if (!data.values || data.values.length <= 1) return null;
+
+      for (let i = 1; i < data.values.length; i++) {
+        const row = data.values[i];
+        if (row[columnIndex] && row[columnIndex].toString() === value.toString()) {
+          return { row, rowIndex: i + 1 };
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error(`Error finding row in ${sheetName}:`, error);
+      return null;
+    }
+  }
+
+  private async updateRow(sheetName: string, rowIndex: number, values: any[]): Promise<void> {
+    try {
+      await this.sheets.spreadsheets.values.update({
+        spreadsheetId: this.spreadsheetId,
+        range: `${sheetName}!A${rowIndex}:Z${rowIndex}`,
+        valueInputOption: 'RAW',
+        requestBody: {
+          values: [values]
+        }
+      });
+    } catch (error) {
+      console.error(`Error updating row in ${sheetName}:`, error);
+      throw error;
+    }
+  }
+
+  private parseStudent(row: any[]): Student | null {
+    if (!row || row.length < 6) return null;
+    return {
+      id: parseInt(row[0]) || 0,
+      studentId: row[1] || '',
+      name: row[2] || '',
+      grade: row[3] || '',
+      class: row[4] || '',
+      createdAt: new Date(row[5] || Date.now())
+    };
+  }
+
+  private parseUpload(row: any[]): Upload | null {
+    if (!row || row.length < 14) return null;
+    return {
+      id: parseInt(row[0]) || 0,
+      filename: row[1] || '',
+      originalName: row[2] || '',
+      fileSize: parseInt(row[3]) || 0,
+      mimeType: row[4] || '',
+      status: row[5] || 'pending',
+      uploadedBy: row[6] || '',
+      uploadedAt: new Date(row[7] || Date.now()),
+      approvedAt: row[8] ? new Date(row[8]) : null,
+      approvedBy: row[9] || null,
+      validationResults: row[10] ? JSON.parse(row[10]) : null,
+      errorCount: parseInt(row[11]) || 0,
+      validCount: parseInt(row[12]) || 0,
+      totalCount: parseInt(row[13]) || 0
+    };
+  }
+
+  private parseGrade(row: any[]): Grade | null {
+    if (!row || row.length < 18) return null;
+    return {
+      id: parseInt(row[0]) || 0,
+      uploadId: parseInt(row[1]) || 0,
+      studentId: row[2] || '',
+      studentName: row[3] || '',
+      subject: row[4] || '',
+      grade: row[5] || '',
+      numericGrade: row[6] || null,
+      gpa: row[7] || null,
+      class: row[8] || null,
+      term: row[9] || '',
+      academicYear: row[10] || '',
+      isValid: row[11] === 'true',
+      validationError: row[12] || null,
+      status: row[13] || 'pending',
+      rejectionReason: row[14] || null,
+      reviewedBy: row[15] || null,
+      reviewedAt: row[16] ? new Date(row[16]) : null,
+      createdAt: new Date(row[17] || Date.now())
+    };
+  }
+
+  private parseReportCard(row: any[]): ReportCard | null {
+    if (!row || row.length < 11) return null;
+    return {
+      id: parseInt(row[0]) || 0,
+      studentId: row[1] || '',
+      studentName: row[2] || '',
+      grade: row[3] || '',
+      class: row[4] || '',
+      term: row[5] || '',
+      academicYear: row[6] || '',
+      pdfPath: row[7] || null,
+      generatedAt: new Date(row[8] || Date.now()),
+      generatedBy: row[9] || '',
+      uploadId: parseInt(row[10]) || 0
+    };
+  }
+
+  // Students
+  async getStudent(id: number): Promise<Student | undefined> {
+    await this.ensureInitialized();
+    const result = await this.findRowByColumn('students', 0, id);
+    return result ? this.parseStudent(result.row) || undefined : undefined;
+  }
+
+  async getStudentByStudentId(studentId: string): Promise<Student | undefined> {
+    const result = await this.findRowByColumn('students', 1, studentId);
+    return result ? this.parseStudent(result.row) || undefined : undefined;
+  }
+
+  async createStudent(insertStudent: InsertStudent): Promise<Student> {
+    const id = await this.getNextId('students');
+    const student: Student = {
+      ...insertStudent,
+      id,
+      createdAt: new Date()
+    };
+
+    const values = [
+      student.id,
+      student.studentId,
+      student.name,
+      student.grade,
+      student.class,
+      student.createdAt.toISOString()
+    ];
+
+    await this.appendRow('students', values);
+    return student;
+  }
+
+  async updateStudent(id: number, student: Partial<InsertStudent>): Promise<Student | undefined> {
+    const result = await this.findRowByColumn('students', 0, id);
+    if (!result) return undefined;
+
+    const existing = this.parseStudent(result.row);
+    if (!existing) return undefined;
+
+    const updated = { ...existing, ...student };
+    const values = [
+      updated.id,
+      updated.studentId,
+      updated.name,
+      updated.grade,
+      updated.class,
+      updated.createdAt.toISOString()
+    ];
+
+    await this.updateRow('students', result.rowIndex, values);
+    return updated;
+  }
+
+  // Uploads
+  async getUpload(id: number): Promise<Upload | undefined> {
+    const result = await this.findRowByColumn('uploads', 0, id);
+    return result ? this.parseUpload(result.row) || undefined : undefined;
+  }
+
+  async getAllUploads(): Promise<Upload[]> {
+    try {
+      await this.ensureInitialized();
+      const { data } = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: 'uploads!A:Z',
+      });
+
+      if (!data.values || data.values.length <= 1) return [];
+
+      const uploads = data.values.slice(1)
+        .map(row => this.parseUpload(row))
+        .filter((upload): upload is Upload => upload !== null);
+
+      return uploads.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    } catch (error) {
+      console.error('Error getting all uploads:', error);
+      return [];
+    }
+  }
+
+  async getUploadsByStatus(status: string): Promise<Upload[]> {
+    const allUploads = await this.getAllUploads();
+    return allUploads.filter(upload => upload.status === status);
+  }
+
+  async createUpload(insertUpload: InsertUpload): Promise<Upload> {
+    const id = await this.getNextId('uploads');
+    const upload: Upload = {
+      ...insertUpload,
+      status: insertUpload.status || 'pending',
+      id,
+      uploadedAt: new Date(),
+      approvedAt: null,
+      approvedBy: null,
+      validationResults: null,
+      errorCount: 0,
+      validCount: 0,
+      totalCount: 0
+    };
+
+    const values = [
+      upload.id,
+      upload.filename,
+      upload.originalName,
+      upload.fileSize,
+      upload.mimeType,
+      upload.status,
+      upload.uploadedBy,
+      upload.uploadedAt.toISOString(),
+      upload.approvedAt ? upload.approvedAt.toISOString() : '',
+      upload.approvedBy || '',
+      upload.validationResults ? JSON.stringify(upload.validationResults) : '',
+      upload.errorCount,
+      upload.validCount,
+      upload.totalCount
+    ];
+
+    await this.appendRow('uploads', values);
+    return upload;
+  }
+
+  async updateUpload(id: number, upload: Partial<Upload>): Promise<Upload | undefined> {
+    const result = await this.findRowByColumn('uploads', 0, id);
+    if (!result) return undefined;
+
+    const existing = this.parseUpload(result.row);
+    if (!existing) return undefined;
+
+    const updated = { ...existing, ...upload };
+    const values = [
+      updated.id,
+      updated.filename,
+      updated.originalName,
+      updated.fileSize,
+      updated.mimeType,
+      updated.status,
+      updated.uploadedBy,
+      updated.uploadedAt.toISOString(),
+      updated.approvedAt ? updated.approvedAt.toISOString() : '',
+      updated.approvedBy || '',
+      updated.validationResults ? JSON.stringify(updated.validationResults) : '',
+      updated.errorCount,
+      updated.validCount,
+      updated.totalCount
+    ];
+
+    await this.updateRow('uploads', result.rowIndex, values);
+    return updated;
+  }
+
+  // Grades
+  async getGrade(id: number): Promise<Grade | undefined> {
+    const result = await this.findRowByColumn('grades', 0, id);
+    return result ? this.parseGrade(result.row) || undefined : undefined;
+  }
+
+  async getGradesByUpload(uploadId: number): Promise<Grade[]> {
+    try {
+      const { data } = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: 'grades!A:Z',
+      });
+
+      if (!data.values || data.values.length <= 1) return [];
+
+      return data.values.slice(1)
+        .map(row => this.parseGrade(row))
+        .filter((grade): grade is Grade => grade !== null && grade.uploadId === uploadId);
+    } catch (error) {
+      console.error('Error getting grades by upload:', error);
+      return [];
+    }
+  }
+
+  async getGradesByStudent(studentId: string): Promise<Grade[]> {
+    try {
+      const { data } = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: 'grades!A:Z',
+      });
+
+      if (!data.values || data.values.length <= 1) return [];
+
+      return data.values.slice(1)
+        .map(row => this.parseGrade(row))
+        .filter((grade): grade is Grade => grade !== null && grade.studentId === studentId);
+    } catch (error) {
+      console.error('Error getting grades by student:', error);
+      return [];
+    }
+  }
+
+  async createGrade(insertGrade: InsertGrade): Promise<Grade> {
+    const id = await this.getNextId('grades');
+    const grade: Grade = {
+      ...insertGrade,
+      gpa: insertGrade.gpa || null,
+      numericGrade: insertGrade.numericGrade || null,
+      class: insertGrade.class || null,
+      id,
+      createdAt: new Date(),
+      isValid: true,
+      validationError: null,
+      status: 'pending',
+      rejectionReason: null,
+      reviewedBy: null,
+      reviewedAt: null
+    };
+
+    const values = [
+      grade.id,
+      grade.uploadId,
+      grade.studentId,
+      grade.studentName,
+      grade.subject,
+      grade.grade,
+      grade.numericGrade || '',
+      grade.gpa || '',
+      grade.class || '',
+      grade.term,
+      grade.academicYear,
+      grade.isValid.toString(),
+      grade.validationError || '',
+      grade.status,
+      grade.rejectionReason || '',
+      grade.reviewedBy || '',
+      grade.reviewedAt ? grade.reviewedAt.toISOString() : '',
+      grade.createdAt.toISOString()
+    ];
+
+    await this.appendRow('grades', values);
+    return grade;
+  }
+
+  async createMultipleGrades(insertGrades: InsertGrade[]): Promise<Grade[]> {
+    const createdGrades: Grade[] = [];
+    for (const insertGrade of insertGrades) {
+      const grade = await this.createGrade(insertGrade);
+      createdGrades.push(grade);
+    }
+    return createdGrades;
+  }
+
+  async updateGrade(id: number, grade: Partial<Grade>): Promise<Grade | undefined> {
+    const result = await this.findRowByColumn('grades', 0, id);
+    if (!result) return undefined;
+
+    const existing = this.parseGrade(result.row);
+    if (!existing) return undefined;
+
+    const updated = { ...existing, ...grade };
+    const values = [
+      updated.id,
+      updated.uploadId,
+      updated.studentId,
+      updated.studentName,
+      updated.subject,
+      updated.grade,
+      updated.numericGrade || '',
+      updated.gpa || '',
+      updated.class || '',
+      updated.term,
+      updated.academicYear,
+      updated.isValid.toString(),
+      updated.validationError || '',
+      updated.status,
+      updated.rejectionReason || '',
+      updated.reviewedBy || '',
+      updated.reviewedAt ? updated.reviewedAt.toISOString() : '',
+      updated.createdAt.toISOString()
+    ];
+
+    await this.updateRow('grades', result.rowIndex, values);
+    return updated;
+  }
+
+  // Report Cards
+  async getReportCard(id: number): Promise<ReportCard | undefined> {
+    const result = await this.findRowByColumn('report_cards', 0, id);
+    return result ? this.parseReportCard(result.row) || undefined : undefined;
+  }
+
+  async getReportCardsByStudent(studentId: string): Promise<ReportCard[]> {
+    try {
+      const { data } = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: 'report_cards!A:Z',
+      });
+
+      if (!data.values || data.values.length <= 1) return [];
+
+      return data.values.slice(1)
+        .map(row => this.parseReportCard(row))
+        .filter((rc): rc is ReportCard => rc !== null && rc.studentId === studentId);
+    } catch (error) {
+      console.error('Error getting report cards by student:', error);
+      return [];
+    }
+  }
+
+  async getReportCardsByUpload(uploadId: number): Promise<ReportCard[]> {
+    try {
+      const { data } = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: 'report_cards!A:Z',
+      });
+
+      if (!data.values || data.values.length <= 1) return [];
+
+      return data.values.slice(1)
+        .map(row => this.parseReportCard(row))
+        .filter((rc): rc is ReportCard => rc !== null && rc.uploadId === uploadId);
+    } catch (error) {
+      console.error('Error getting report cards by upload:', error);
+      return [];
+    }
+  }
+
+  async getAllReportCards(): Promise<ReportCard[]> {
+    try {
+      await this.ensureInitialized();
+      const { data } = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: 'report_cards!A:Z',
+      });
+
+      if (!data.values || data.values.length <= 1) return [];
+
+      const reportCards = data.values.slice(1)
+        .map(row => this.parseReportCard(row))
+        .filter((rc): rc is ReportCard => rc !== null);
+
+      return reportCards.sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime());
+    } catch (error) {
+      console.error('Error getting all report cards:', error);
+      return [];
+    }
+  }
+
+  async createReportCard(insertReportCard: InsertReportCard): Promise<ReportCard> {
+    const id = await this.getNextId('report_cards');
+    const reportCard: ReportCard = {
+      ...insertReportCard,
+      id,
+      generatedAt: new Date(),
+      pdfPath: null
+    };
+
+    const values = [
+      reportCard.id,
+      reportCard.studentId,
+      reportCard.studentName,
+      reportCard.grade,
+      reportCard.class,
+      reportCard.term,
+      reportCard.academicYear,
+      reportCard.pdfPath || '',
+      reportCard.generatedAt.toISOString(),
+      reportCard.generatedBy,
+      reportCard.uploadId
+    ];
+
+    await this.appendRow('report_cards', values);
+    return reportCard;
+  }
+
+  async updateReportCard(id: number, reportCard: Partial<ReportCard>): Promise<ReportCard | undefined> {
+    const result = await this.findRowByColumn('report_cards', 0, id);
+    if (!result) return undefined;
+
+    const existing = this.parseReportCard(result.row);
+    if (!existing) return undefined;
+
+    const updated = { ...existing, ...reportCard };
+    const values = [
+      updated.id,
+      updated.studentId,
+      updated.studentName,
+      updated.grade,
+      updated.class,
+      updated.term,
+      updated.academicYear,
+      updated.pdfPath || '',
+      updated.generatedAt.toISOString(),
+      updated.generatedBy,
+      updated.uploadId
+    ];
+
+    await this.updateRow('report_cards', result.rowIndex, values);
+    return updated;
+  }
+
+  // Dashboard stats
+  async getDashboardStats(): Promise<{
+    totalUploads: number;
+    pendingApproval: number;
+    reportsGenerated: number;
+    successRate: number;
+  }> {
+    await this.ensureInitialized();
+    const allUploads = await this.getAllUploads();
+    const allReportCards = await this.getAllReportCards();
+
+    const totalUploads = allUploads.length;
+    const pendingApproval = allUploads.filter(u => u.status === 'pending').length;
+    const reportsGenerated = allReportCards.length;
+
+    const approvedUploads = allUploads.filter(u => u.status === 'approved').length;
+    const successRate = totalUploads > 0 ? (approvedUploads / totalUploads) * 100 : 0;
+
+    return {
+      totalUploads,
+      pendingApproval,
+      reportsGenerated,
+      successRate: Math.round(successRate * 10) / 10
+    };
+  }
+}
+
+// Initialize storage with fallback to in-memory if Google Sheets fails
+class StorageManager {
+  private storageInstance: IStorage | null = null;
+  private initPromise: Promise<IStorage> | null = null;
+
+  async getStorage(): Promise<IStorage> {
+    if (this.storageInstance) {
+      return this.storageInstance;
+    }
+
+    if (this.initPromise) {
+      return this.initPromise;
+    }
+
+    this.initPromise = this.initializeStorage();
+    this.storageInstance = await this.initPromise;
+    return this.storageInstance;
+  }
+
+  private async initializeStorage(): Promise<IStorage> {
+    try {
+      console.log('Attempting to initialize Google Sheets storage...');
+      const googleStorage = new GoogleSheetsStorage();
+      
+      // Test the connection with a simple operation
+      await googleStorage.getDashboardStats();
+      
+      console.log('Google Sheets storage initialized successfully');
+      return googleStorage;
+    } catch (error) {
+      console.warn('Failed to initialize Google Sheets storage, falling back to in-memory storage:', error);
+      console.log('Using in-memory storage - data will not persist between restarts');
+      return new MemStorage();
+    }
+  }
+}
+
+const storageManager = new StorageManager();
+
+// Export a proxy that delegates to the storage manager
+export const storage: IStorage = new Proxy({} as IStorage, {
+  get(target, prop) {
+    return async (...args: any[]) => {
+      const storageInstance = await storageManager.getStorage();
+      const method = (storageInstance as any)[prop];
+      if (typeof method === 'function') {
+        return method.apply(storageInstance, args);
+      }
+      return method;
+    };
+  }
+});
