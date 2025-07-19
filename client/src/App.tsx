@@ -13,12 +13,14 @@ function Router() {
   return (
     <div className="min-h-screen bg-academic-bg">
       <NavigationHeader />
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/uploads" component={Uploads} />
-        <Route path="/reports" component={Reports} />
-        <Route component={NotFound} />
-      </Switch>
+      <main>
+        <Switch>
+          <Route path="/" component={Dashboard} />
+          <Route path="/uploads" component={Uploads} />
+          <Route path="/reports" component={Reports} />
+          <Route component={NotFound} />
+        </Switch>
+      </main>
     </div>
   );
 }
