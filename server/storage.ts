@@ -527,8 +527,15 @@ export class GoogleSheetsStorage implements IStorage {
   private auth: any;
   private initialized: boolean = false;
   private initPromise: Promise<void> | null = null;
+  sessionStore: any;
 
   constructor() {
+    // Use memory store for Google Sheets (no session persistence needed)
+    const MemoryStore = createMemoryStore(session);
+    this.sessionStore = new MemoryStore({
+      checkPeriod: 86400000,
+    });
+    
     this.spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID!;
     
     // Initialize Google Sheets API with service account credentials
@@ -1245,19 +1252,34 @@ class StorageManager {
   }
 
   private async initializeStorage(): Promise<IStorage> {
+    // Try Google Sheets first
     try {
-      console.log('Attempting to initialize Database storage...');
-      const dbStorage = new DatabaseStorage();
+      console.log('Attempting to initialize Google Sheets storage...');
+      const sheetsStorage = new GoogleSheetsStorage();
       
       // Test the connection with a simple operation
-      await dbStorage.getDashboardStats();
+      await sheetsStorage.getDashboardStats();
       
-      console.log('Database storage initialized successfully');
-      return dbStorage;
+      console.log('Google Sheets storage initialized successfully');
+      return sheetsStorage;
     } catch (error) {
-      console.warn('Failed to initialize Database storage, falling back to in-memory storage:', error);
-      console.log('Using in-memory storage - data will not persist between restarts');
-      return new MemStorage();
+      console.warn('Failed to initialize Google Sheets storage:', error);
+      
+      // Fallback to database
+      try {
+        console.log('Attempting to initialize Database storage...');
+        const dbStorage = new DatabaseStorage();
+        
+        // Test the connection with a simple operation
+        await dbStorage.getDashboardStats();
+        
+        console.log('Database storage initialized successfully');
+        return dbStorage;
+      } catch (dbError) {
+        console.warn('Failed to initialize Database storage, falling back to in-memory storage:', dbError);
+        console.log('Using in-memory storage - data will not persist between restarts');
+        return new MemStorage();
+      }
     }
   }
 }
