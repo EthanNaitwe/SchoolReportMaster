@@ -17,15 +17,25 @@ function Router() {
     <div className="min-h-screen bg-academic-bg">
       <Switch>
         <Route path="/auth" component={AuthPage} />
-        <Route>
+        <Route path="/">
           <NavigationHeader />
           <main>
             <ProtectedRoute path="/" component={Dashboard} />
-            <ProtectedRoute path="/uploads" component={Uploads} />
-            <ProtectedRoute path="/reports" component={Reports} />
-            <Route component={NotFound} />
           </main>
         </Route>
+        <Route path="/uploads">
+          <NavigationHeader />
+          <main>
+            <ProtectedRoute path="/uploads" component={Uploads} />
+          </main>
+        </Route>
+        <Route path="/reports">
+          <NavigationHeader />
+          <main>
+            <ProtectedRoute path="/reports" component={Reports} />
+          </main>
+        </Route>
+        <Route component={NotFound} />
       </Switch>
     </div>
   );
