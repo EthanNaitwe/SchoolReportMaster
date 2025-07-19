@@ -609,10 +609,8 @@ export class GoogleSheetsStorage implements IStorage {
       // Initialize headers for each sheet
       await this.initializeHeaders();
       
-      // Seed users if none exist (but don't block startup)
-      this.seedUsersIfEmpty().catch(error => {
-        console.error('Error during user seeding (non-blocking):', error);
-      });
+      // Seed users if none exist  
+      await this.seedUsersIfEmpty();
       
       this.initialized = true;
       console.log('Google Sheets initialized successfully');
@@ -806,6 +804,9 @@ export class GoogleSheetsStorage implements IStorage {
 
   private parseUser(row: any[]): User | null {
     if (!row || row.length < 9) return null;
+    
+    const isActive = row[6] === 'true' || row[6] === true || row[6] === 'TRUE' || row[6] === 1 || row[6] === '1';
+    
     return {
       id: parseInt(row[0]) || 0,
       username: row[1] || '',
@@ -813,7 +814,7 @@ export class GoogleSheetsStorage implements IStorage {
       password: row[3] || '',
       firstName: row[4] || null,
       lastName: row[5] || null,
-      isActive: row[6] === 'true' || row[6] === true,
+      isActive: isActive,
       createdAt: new Date(row[7] || Date.now()),
       updatedAt: new Date(row[8] || Date.now())
     };
@@ -844,9 +845,14 @@ export class GoogleSheetsStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    await this.ensureInitialized();
-    const result = await this.findRowByColumn('users', 1, username);
-    return result ? this.parseUser(result.row) || undefined : undefined;
+    try {
+      await this.ensureInitialized();
+      const result = await this.findRowByColumn('users', 1, username);
+      return result ? this.parseUser(result.row) || undefined : undefined;
+    } catch (error) {
+      console.error(`Error getting user by username ${username}:`, error);
+      return undefined;
+    }
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
@@ -856,42 +862,30 @@ export class GoogleSheetsStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    try {
-      console.log(`Creating user: ${insertUser.username}`);
-      await this.ensureInitialized();
-      
-      console.log('Getting next ID...');
-      const id = await this.getNextId('users');
-      console.log(`Next ID: ${id}`);
-      
-      const user: User = {
-        ...insertUser,
-        id,
-        isActive: insertUser.isActive ?? true,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
+    await this.ensureInitialized();
+    const id = await this.getNextId('users');
+    const user: User = {
+      ...insertUser,
+      id,
+      isActive: insertUser.isActive ?? true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
 
-      const values = [
-        user.id,
-        user.username,
-        user.email,
-        user.password,
-        user.firstName || '',
-        user.lastName || '',
-        user.isActive,
-        user.createdAt.toISOString(),
-        user.updatedAt.toISOString()
-      ];
+    const values = [
+      user.id,
+      user.username,
+      user.email,
+      user.password,
+      user.firstName || '',
+      user.lastName || '',
+      user.isActive,
+      user.createdAt.toISOString(),
+      user.updatedAt.toISOString()
+    ];
 
-      console.log(`Appending row for user: ${user.username}`);
-      await this.appendRow('users', values);
-      console.log(`Successfully created user: ${user.username}`);
-      return user;
-    } catch (error) {
-      console.error(`Error in createUser for ${insertUser.username}:`, error);
-      throw error;
-    }
+    await this.appendRow('users', values);
+    return user;
   }
 
   async updateUser(id: number, userData: Partial<InsertUser>): Promise<User | undefined> {

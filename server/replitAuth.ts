@@ -26,14 +26,11 @@ export async function comparePasswords(supplied: string, stored: string): Promis
 }
 
 export async function setupAuth(app: Express) {
-  // Get the storage instance and its session store
-  const storageInstance = await (storage as any).getStorage();
-  
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET || 'dev-secret-key-change-in-production',
     resave: false,
     saveUninitialized: false,
-    store: storageInstance?.sessionStore,
+    // Using default memory store for now
     cookie: {
       httpOnly: true,
       secure: false, // Set to true in production with HTTPS
