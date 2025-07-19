@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import PDFDocument from "pdfkit";
@@ -123,6 +124,20 @@ function calculateGPA(grade: string): string {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Auth middleware
+  await setupAuth(app);
+
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
   
   // Download sample Excel template
   app.get("/api/template/download", async (req, res) => {
@@ -176,7 +191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get dashboard stats
-  app.get("/api/dashboard/stats", async (req, res) => {
+  app.get("/api/dashboard/stats", isAuthenticated, async (req, res) => {
     try {
       const stats = await storage.getDashboardStats();
       res.json(stats);
@@ -186,7 +201,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all uploads
-  app.get("/api/uploads", async (req, res) => {
+  app.get("/api/uploads", isAuthenticated, async (req, res) => {
     try {
       const uploads = await storage.getAllUploads();
       res.json(uploads);
@@ -196,7 +211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get upload by ID
-  app.get("/api/uploads/:id", async (req, res) => {
+  app.get("/api/uploads/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const upload = await storage.getUpload(id);
@@ -210,7 +225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload Excel file
-  app.post("/api/uploads", upload.single('file'), async (req, res) => {
+  app.post("/api/uploads", isAuthenticated, upload.single('file'), async (req, res) => {
     try {
       console.log('Upload request received');
       console.log('Request headers:', req.headers);

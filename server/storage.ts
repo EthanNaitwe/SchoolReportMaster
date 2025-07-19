@@ -1,14 +1,21 @@
 import { 
-  students, uploads, grades, reportCards,
+  students, uploads, grades, reportCards, users,
   type Student, type InsertStudent,
   type Upload, type InsertUpload,
   type Grade, type InsertGrade,
-  type ReportCard, type InsertReportCard
+  type ReportCard, type InsertReportCard,
+  type User, type UpsertUser
 } from "@shared/schema";
 import { google } from 'googleapis';
 import type { sheets_v4 } from 'googleapis';
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
+  // Users (required for Replit Auth)
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+  
   // Students
   getStudent(id: number): Promise<Student | undefined>;
   getStudentByStudentId(studentId: string): Promise<Student | undefined>;
@@ -47,7 +54,174 @@ export interface IStorage {
   }>;
 }
 
+export class DatabaseStorage implements IStorage {
+  // Users (required for Replit Auth)
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  // Students
+  async getStudent(id: number): Promise<Student | undefined> {
+    const [student] = await db.select().from(students).where(eq(students.id, id));
+    return student;
+  }
+
+  async getStudentByStudentId(studentId: string): Promise<Student | undefined> {
+    const [student] = await db.select().from(students).where(eq(students.studentId, studentId));
+    return student;
+  }
+
+  async createStudent(insertStudent: InsertStudent): Promise<Student> {
+    const [student] = await db.insert(students).values(insertStudent).returning();
+    return student;
+  }
+
+  async updateStudent(id: number, student: Partial<InsertStudent>): Promise<Student | undefined> {
+    const [updated] = await db
+      .update(students)
+      .set(student)
+      .where(eq(students.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Uploads
+  async getUpload(id: number): Promise<Upload | undefined> {
+    const [upload] = await db.select().from(uploads).where(eq(uploads.id, id));
+    return upload;
+  }
+
+  async getAllUploads(): Promise<Upload[]> {
+    return await db.select().from(uploads).orderBy(uploads.uploadedAt);
+  }
+
+  async getUploadsByStatus(status: string): Promise<Upload[]> {
+    return await db.select().from(uploads).where(eq(uploads.status, status));
+  }
+
+  async createUpload(insertUpload: InsertUpload): Promise<Upload> {
+    const [upload] = await db.insert(uploads).values(insertUpload).returning();
+    return upload;
+  }
+
+  async updateUpload(id: number, upload: Partial<Upload>): Promise<Upload | undefined> {
+    const [updated] = await db
+      .update(uploads)
+      .set(upload)
+      .where(eq(uploads.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Grades
+  async getGrade(id: number): Promise<Grade | undefined> {
+    const [grade] = await db.select().from(grades).where(eq(grades.id, id));
+    return grade;
+  }
+
+  async getGradesByUpload(uploadId: number): Promise<Grade[]> {
+    return await db.select().from(grades).where(eq(grades.uploadId, uploadId));
+  }
+
+  async getGradesByStudent(studentId: string): Promise<Grade[]> {
+    return await db.select().from(grades).where(eq(grades.studentId, studentId));
+  }
+
+  async createGrade(insertGrade: InsertGrade): Promise<Grade> {
+    const [grade] = await db.insert(grades).values(insertGrade).returning();
+    return grade;
+  }
+
+  async createMultipleGrades(insertGrades: InsertGrade[]): Promise<Grade[]> {
+    if (insertGrades.length === 0) return [];
+    return await db.insert(grades).values(insertGrades).returning();
+  }
+
+  async updateGrade(id: number, grade: Partial<Grade>): Promise<Grade | undefined> {
+    const [updated] = await db
+      .update(grades)
+      .set(grade)
+      .where(eq(grades.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Report Cards
+  async getReportCard(id: number): Promise<ReportCard | undefined> {
+    const [reportCard] = await db.select().from(reportCards).where(eq(reportCards.id, id));
+    return reportCard;
+  }
+
+  async getReportCardsByStudent(studentId: string): Promise<ReportCard[]> {
+    return await db.select().from(reportCards).where(eq(reportCards.studentId, studentId));
+  }
+
+  async getReportCardsByUpload(uploadId: number): Promise<ReportCard[]> {
+    return await db.select().from(reportCards).where(eq(reportCards.uploadId, uploadId));
+  }
+
+  async getAllReportCards(): Promise<ReportCard[]> {
+    return await db.select().from(reportCards).orderBy(reportCards.generatedAt);
+  }
+
+  async createReportCard(insertReportCard: InsertReportCard): Promise<ReportCard> {
+    const [reportCard] = await db.insert(reportCards).values(insertReportCard).returning();
+    return reportCard;
+  }
+
+  async updateReportCard(id: number, reportCard: Partial<ReportCard>): Promise<ReportCard | undefined> {
+    const [updated] = await db
+      .update(reportCards)
+      .set(reportCard)
+      .where(eq(reportCards.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Dashboard stats
+  async getDashboardStats(): Promise<{
+    totalUploads: number;
+    pendingApproval: number;
+    reportsGenerated: number;
+    successRate: number;
+  }> {
+    const allUploads = await db.select().from(uploads);
+    const allReportCards = await db.select().from(reportCards);
+    
+    const totalUploads = allUploads.length;
+    const pendingApproval = allUploads.filter(u => u.status === 'pending').length;
+    const reportsGenerated = allReportCards.length;
+    
+    const approvedUploads = allUploads.filter(u => u.status === 'approved').length;
+    const successRate = totalUploads > 0 ? (approvedUploads / totalUploads) * 100 : 0;
+    
+    return {
+      totalUploads,
+      pendingApproval,
+      reportsGenerated,
+      successRate: Math.round(successRate * 10) / 10
+    };
+  }
+}
+
 export class MemStorage implements IStorage {
+  private users: Map<string, User>;
   private students: Map<number, Student>;
   private uploads: Map<number, Upload>;
   private grades: Map<number, Grade>;
@@ -58,6 +232,7 @@ export class MemStorage implements IStorage {
   private currentReportCardId: number;
 
   constructor() {
+    this.users = new Map();
     this.students = new Map();
     this.uploads = new Map();
     this.grades = new Map();
@@ -66,6 +241,22 @@ export class MemStorage implements IStorage {
     this.currentUploadId = 1;
     this.currentGradeId = 1;
     this.currentReportCardId = 1;
+  }
+
+  // Users (required for Replit Auth)
+  async getUser(id: string): Promise<User | undefined> {
+    return this.users.get(id);
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const existing = this.users.get(userData.id);
+    const user: User = {
+      ...userData,
+      createdAt: existing?.createdAt || new Date(),
+      updatedAt: new Date(),
+    };
+    this.users.set(userData.id, user);
+    return user;
   }
 
   // Students
@@ -983,16 +1174,16 @@ class StorageManager {
 
   private async initializeStorage(): Promise<IStorage> {
     try {
-      console.log('Attempting to initialize Google Sheets storage...');
-      const googleStorage = new GoogleSheetsStorage();
+      console.log('Attempting to initialize Database storage...');
+      const dbStorage = new DatabaseStorage();
       
       // Test the connection with a simple operation
-      await googleStorage.getDashboardStats();
+      await dbStorage.getDashboardStats();
       
-      console.log('Google Sheets storage initialized successfully');
-      return googleStorage;
+      console.log('Database storage initialized successfully');
+      return dbStorage;
     } catch (error) {
-      console.warn('Failed to initialize Google Sheets storage, falling back to in-memory storage:', error);
+      console.warn('Failed to initialize Database storage, falling back to in-memory storage:', error);
       console.log('Using in-memory storage - data will not persist between restarts');
       return new MemStorage();
     }
