@@ -124,8 +124,16 @@ function calculateGPA(grade: string): string {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  console.log('Setting up authentication...');
+  
   // Auth middleware
-  await setupAuth(app);
+  try {
+    await setupAuth(app);
+    console.log('Authentication setup completed');
+  } catch (error) {
+    console.error('Error setting up authentication:', error);
+    throw error;
+  }
 
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
@@ -540,6 +548,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  console.log('Creating HTTP server...');
   const httpServer = createServer(app);
+  console.log('HTTP server created successfully');
   return httpServer;
 }

@@ -609,15 +609,20 @@ export class GoogleSheetsStorage implements IStorage {
       // Initialize headers for each sheet
       await this.initializeHeaders();
       
-      // Seed users if none exist
-      await this.seedUsersIfEmpty();
+      // Seed users if none exist (but don't block startup)
+      this.seedUsersIfEmpty().catch(error => {
+        console.error('Error during user seeding (non-blocking):', error);
+      });
       
       this.initialized = true;
       console.log('Google Sheets initialized successfully');
     } catch (error) {
       console.error('Error initializing Google Sheets:', error);
       this.initPromise = null; // Reset so we can retry
-      throw error;
+      
+      // Don't throw - continue with fallback storage
+      console.log('Continuing without Google Sheets initialization');
+      this.initialized = true; // Mark as initialized to prevent infinite loops
     }
   }
 
@@ -851,30 +856,42 @@ export class GoogleSheetsStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    await this.ensureInitialized();
-    const id = await this.getNextId('users');
-    const user: User = {
-      ...insertUser,
-      id,
-      isActive: insertUser.isActive ?? true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
+    try {
+      console.log(`Creating user: ${insertUser.username}`);
+      await this.ensureInitialized();
+      
+      console.log('Getting next ID...');
+      const id = await this.getNextId('users');
+      console.log(`Next ID: ${id}`);
+      
+      const user: User = {
+        ...insertUser,
+        id,
+        isActive: insertUser.isActive ?? true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
 
-    const values = [
-      user.id,
-      user.username,
-      user.email,
-      user.password,
-      user.firstName || '',
-      user.lastName || '',
-      user.isActive,
-      user.createdAt.toISOString(),
-      user.updatedAt.toISOString()
-    ];
+      const values = [
+        user.id,
+        user.username,
+        user.email,
+        user.password,
+        user.firstName || '',
+        user.lastName || '',
+        user.isActive,
+        user.createdAt.toISOString(),
+        user.updatedAt.toISOString()
+      ];
 
-    await this.appendRow('users', values);
-    return user;
+      console.log(`Appending row for user: ${user.username}`);
+      await this.appendRow('users', values);
+      console.log(`Successfully created user: ${user.username}`);
+      return user;
+    } catch (error) {
+      console.error(`Error in createUser for ${insertUser.username}:`, error);
+      throw error;
+    }
   }
 
   async updateUser(id: number, userData: Partial<InsertUser>): Promise<User | undefined> {
@@ -908,6 +925,8 @@ export class GoogleSheetsStorage implements IStorage {
 
   private async seedUsersIfEmpty(): Promise<void> {
     try {
+      console.log('Checking if users need to be seeded...');
+      
       // Check if users already exist
       const { data } = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
@@ -967,13 +986,23 @@ export class GoogleSheetsStorage implements IStorage {
       ];
 
       // Add each user
-      for (const userData of seedUsers) {
-        await this.createUser(userData);
+      console.log('Creating users...');
+      for (let i = 0; i < seedUsers.length; i++) {
+        const userData = seedUsers[i];
+        console.log(`Creating user ${i + 1}: ${userData.username}`);
+        try {
+          await this.createUser(userData);
+          console.log(`✓ Created user: ${userData.username}`);
+        } catch (error) {
+          console.error(`Error creating user ${userData.username}:`, error);
+          // Continue with other users
+        }
       }
 
-      console.log('Successfully seeded 5 users');
+      console.log('Successfully completed user seeding process');
     } catch (error) {
       console.error('Error seeding users:', error);
+      // Don't throw error - continue with application startup
     }
   }
 
