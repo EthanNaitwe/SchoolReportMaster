@@ -2,14 +2,14 @@
 
 ## Overview
 
-This is a full-stack TypeScript application built for managing academic report cards. The system allows users to upload Excel files containing student grade data, validate the data, approve uploads through an admin workflow, and generate PDF report cards. The application features a modern React frontend with a Node.js/Express backend, using PostgreSQL for data persistence.
+This is a full-stack TypeScript application built for managing academic report cards. The system allows users to upload Excel files containing student grade data, validate the data, approve uploads through an admin workflow, and generate PDF report cards. The application features a modern React frontend with a Node.js/Express backend, using Google Sheets as the primary database with in-memory storage fallback.
 
 ## Recent Changes
 
 **July 19, 2025**
 - ✓ Successfully completed migration from Replit Agent to Replit environment
-- ✓ Configured Google Sheets as primary storage with PostgreSQL and in-memory fallbacks
-- ✓ Updated storage initialization priority: Google Sheets → PostgreSQL → In-Memory
+- ✓ Configured Google Sheets as primary storage with in-memory fallback only
+- ✓ Completely removed PostgreSQL dependencies and references (DATABASE_URL no longer needed)
 - ✓ Successfully connected to "Tamayuz Junior School" spreadsheet
 - ✓ All database schemas automatically created in Google Sheets format
 - ✓ Maintained robust security practices with proper client/server separation
@@ -18,8 +18,8 @@ This is a full-stack TypeScript application built for managing academic report c
 - ✓ Implemented bcryptjs for secure password handling
 - ✓ Seeded 5 default users: admin, teacher1, teacher2, coordinator, principal
 - ✓ Users must have active status to login and access system
-- ✓ Fixed authentication system - login now working correctly with Google Sheets storage
-- ✓ Verified application is fully functional with complete feature set
+- ✓ Fixed authentication system and routing - application fully functional
+- ✓ Cleaned up codebase - removed all PostgreSQL/Drizzle dependencies and files
 
 **July 12, 2025**
 - Successfully migrated from Replit Agent to standard Replit environment
@@ -49,11 +49,12 @@ Preferred communication style: Simple, everyday language.
 - **PDF Generation**: PDFKit for report card generation
 - **Validation**: Zod for schema validation
 
-### Data Storage
-- **Database**: Google Sheets with googleapis integration
+### Data Storage  
+- **Primary Database**: Google Sheets with googleapis integration
+- **Fallback**: In-memory storage (no data persistence)
 - **Storage Implementation**: GoogleSheetsStorage class implementing IStorage interface
 - **Schema Location**: Shared schema definitions in `/shared/schema.ts`
-- **Sheet Structure**: Each database table maps to a separate sheet (students, uploads, grades, report_cards)
+- **Sheet Structure**: Each database table maps to a separate sheet (students, uploads, grades, report_cards, users)
 
 ## Key Components
 
@@ -75,7 +76,7 @@ Preferred communication style: Simple, everyday language.
 - **File Upload Handler**: Processes Excel files and extracts grade data
 - **Data Validation**: Validates student records and grade formats
 - **PDF Generation**: Creates formatted report cards
-- **Storage Interface**: Abstracted data access layer (currently in-memory)
+- **Storage Interface**: Abstracted data access layer with Google Sheets integration
 
 ## Data Flow
 
@@ -98,8 +99,7 @@ Preferred communication style: Simple, everyday language.
 ## External Dependencies
 
 ### Core Libraries
-- **Database**: `@neondatabase/serverless` for PostgreSQL connection
-- **ORM**: `drizzle-orm` and `drizzle-kit` for database operations
+- **Database**: `googleapis` for Google Sheets integration
 - **UI Components**: Extensive `@radix-ui` component collection
 - **File Processing**: `multer` for uploads, `xlsx` for Excel parsing
 - **PDF Generation**: `pdfkit` for report creation

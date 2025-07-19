@@ -1,5 +1,4 @@
 import { 
-  students, uploads, grades, reportCards, users,
   type Student, type InsertStudent,
   type Upload, type InsertUpload,
   type Grade, type InsertGrade,
@@ -8,9 +7,6 @@ import {
 } from "@shared/schema";
 import { google } from 'googleapis';
 import type { sheets_v4 } from 'googleapis';
-import { db } from "./db";
-import { eq } from "drizzle-orm";
-import connectPg from 'connect-pg-simple';
 import session from 'express-session';
 import createMemoryStore from 'memorystore';
 
@@ -63,199 +59,7 @@ export interface IStorage {
   }>;
 }
 
-export class DatabaseStorage implements IStorage {
-  sessionStore: any;
-
-  constructor() {
-    try {
-      const PostgresSessionStore = connectPg(session);
-      this.sessionStore = new PostgresSessionStore({
-        conString: process.env.DATABASE_URL,
-        createTableIfMissing: true,
-      });
-    } catch (error) {
-      console.warn('Failed to initialize PostgreSQL session store:', error);
-      // Fallback to a simple memory store for development
-      const MemoryStore = createMemoryStore(session);
-      this.sessionStore = new MemoryStore({
-        checkPeriod: 86400000,
-      });
-    }
-  }
-
-  // Users (required for auth)
-  async getUser(id: number): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user;
-  }
-
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user;
-  }
-
-  async createUser(userData: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(userData).returning();
-    return user;
-  }
-
-  async updateUser(id: number, userData: Partial<InsertUser>): Promise<User | undefined> {
-    const [user] = await db
-      .update(users)
-      .set({ ...userData, updatedAt: new Date() })
-      .where(eq(users.id, id))
-      .returning();
-    return user;
-  }
-
-  // Students
-  async getStudent(id: number): Promise<Student | undefined> {
-    const [student] = await db.select().from(students).where(eq(students.id, id));
-    return student;
-  }
-
-  async getStudentByStudentId(studentId: string): Promise<Student | undefined> {
-    const [student] = await db.select().from(students).where(eq(students.studentId, studentId));
-    return student;
-  }
-
-  async createStudent(insertStudent: InsertStudent): Promise<Student> {
-    const [student] = await db.insert(students).values(insertStudent).returning();
-    return student;
-  }
-
-  async updateStudent(id: number, student: Partial<InsertStudent>): Promise<Student | undefined> {
-    const [updated] = await db
-      .update(students)
-      .set(student)
-      .where(eq(students.id, id))
-      .returning();
-    return updated;
-  }
-
-  // Uploads
-  async getUpload(id: number): Promise<Upload | undefined> {
-    const [upload] = await db.select().from(uploads).where(eq(uploads.id, id));
-    return upload;
-  }
-
-  async getAllUploads(): Promise<Upload[]> {
-    return await db.select().from(uploads).orderBy(uploads.uploadedAt);
-  }
-
-  async getUploadsByStatus(status: string): Promise<Upload[]> {
-    return await db.select().from(uploads).where(eq(uploads.status, status));
-  }
-
-  async createUpload(insertUpload: InsertUpload): Promise<Upload> {
-    const [upload] = await db.insert(uploads).values(insertUpload).returning();
-    return upload;
-  }
-
-  async updateUpload(id: number, upload: Partial<Upload>): Promise<Upload | undefined> {
-    const [updated] = await db
-      .update(uploads)
-      .set(upload)
-      .where(eq(uploads.id, id))
-      .returning();
-    return updated;
-  }
-
-  // Grades
-  async getGrade(id: number): Promise<Grade | undefined> {
-    const [grade] = await db.select().from(grades).where(eq(grades.id, id));
-    return grade;
-  }
-
-  async getGradesByUpload(uploadId: number): Promise<Grade[]> {
-    return await db.select().from(grades).where(eq(grades.uploadId, uploadId));
-  }
-
-  async getGradesByStudent(studentId: string): Promise<Grade[]> {
-    return await db.select().from(grades).where(eq(grades.studentId, studentId));
-  }
-
-  async createGrade(insertGrade: InsertGrade): Promise<Grade> {
-    const [grade] = await db.insert(grades).values(insertGrade).returning();
-    return grade;
-  }
-
-  async createMultipleGrades(insertGrades: InsertGrade[]): Promise<Grade[]> {
-    if (insertGrades.length === 0) return [];
-    return await db.insert(grades).values(insertGrades).returning();
-  }
-
-  async updateGrade(id: number, grade: Partial<Grade>): Promise<Grade | undefined> {
-    const [updated] = await db
-      .update(grades)
-      .set(grade)
-      .where(eq(grades.id, id))
-      .returning();
-    return updated;
-  }
-
-  // Report Cards
-  async getReportCard(id: number): Promise<ReportCard | undefined> {
-    const [reportCard] = await db.select().from(reportCards).where(eq(reportCards.id, id));
-    return reportCard;
-  }
-
-  async getReportCardsByStudent(studentId: string): Promise<ReportCard[]> {
-    return await db.select().from(reportCards).where(eq(reportCards.studentId, studentId));
-  }
-
-  async getReportCardsByUpload(uploadId: number): Promise<ReportCard[]> {
-    return await db.select().from(reportCards).where(eq(reportCards.uploadId, uploadId));
-  }
-
-  async getAllReportCards(): Promise<ReportCard[]> {
-    return await db.select().from(reportCards).orderBy(reportCards.generatedAt);
-  }
-
-  async createReportCard(insertReportCard: InsertReportCard): Promise<ReportCard> {
-    const [reportCard] = await db.insert(reportCards).values(insertReportCard).returning();
-    return reportCard;
-  }
-
-  async updateReportCard(id: number, reportCard: Partial<ReportCard>): Promise<ReportCard | undefined> {
-    const [updated] = await db
-      .update(reportCards)
-      .set(reportCard)
-      .where(eq(reportCards.id, id))
-      .returning();
-    return updated;
-  }
-
-  // Dashboard stats
-  async getDashboardStats(): Promise<{
-    totalUploads: number;
-    pendingApproval: number;
-    reportsGenerated: number;
-    successRate: number;
-  }> {
-    const allUploads = await db.select().from(uploads);
-    const allReportCards = await db.select().from(reportCards);
-    
-    const totalUploads = allUploads.length;
-    const pendingApproval = allUploads.filter(u => u.status === 'pending').length;
-    const reportsGenerated = allReportCards.length;
-    
-    const approvedUploads = allUploads.filter(u => u.status === 'approved').length;
-    const successRate = totalUploads > 0 ? (approvedUploads / totalUploads) * 100 : 0;
-    
-    return {
-      totalUploads,
-      pendingApproval,
-      reportsGenerated,
-      successRate: Math.round(successRate * 10) / 10
-    };
-  }
-}
+// DatabaseStorage class removed - using Google Sheets instead
 
 export class MemStorage implements IStorage {
   sessionStore: any;
@@ -1453,21 +1257,8 @@ class StorageManager {
     } catch (error) {
       console.warn('Failed to initialize Google Sheets storage:', error);
       
-      // Fallback to database
-      try {
-        console.log('Attempting to initialize Database storage...');
-        const dbStorage = new DatabaseStorage();
-        
-        // Test the connection with a simple operation
-        await dbStorage.getDashboardStats();
-        
-        console.log('Database storage initialized successfully');
-        return dbStorage;
-      } catch (dbError) {
-        console.warn('Failed to initialize Database storage, falling back to in-memory storage:', dbError);
-        console.log('Using in-memory storage - data will not persist between restarts');
-        return new MemStorage();
-      }
+      console.log('Falling back to in-memory storage - data will not persist between restarts');
+      return new MemStorage();
     }
   }
 }
