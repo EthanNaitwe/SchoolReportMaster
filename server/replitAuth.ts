@@ -2,8 +2,7 @@ import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { Express } from "express";
 import session from "express-session";
-import { scrypt, randomBytes, timingSafeEqual } from "crypto";
-import { promisify } from "util";
+import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
 
@@ -13,19 +12,17 @@ declare global {
   }
 }
 
-const scryptAsync = promisify(scrypt);
-
-async function hashPassword(password: string) {
-  const salt = randomBytes(16).toString("hex");
-  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${buf.toString("hex")}.${salt}`;
+export async function hashPassword(password: string): Promise<string> {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
 }
 
-async function comparePasswords(supplied: string, stored: string) {
-  const [hashed, salt] = stored.split(".");
-  const hashedBuf = Buffer.from(hashed, "hex");
-  const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-  return timingSafeEqual(hashedBuf, suppliedBuf);
+export async function comparePasswords(supplied: string, stored: string): Promise<boolean> {
+  // If password is not hashed (plain text from seeding), hash it first
+  if (!stored.startsWith('$2')) {
+    return supplied === stored;
+  }
+  return bcrypt.compare(supplied, stored);
 }
 
 export async function setupAuth(app: Express) {
@@ -51,61 +48,46 @@ export async function setupAuth(app: Express) {
 
   passport.use(
     new LocalStrategy(async (username, password, done) => {
-      const user = await storage.getUserByUsername(username);
-      if (!user || !(await comparePasswords(password, user.password))) {
-        return done(null, false);
-      } else {
+      try {
+        const user = await storage.getUserByUsername(username);
+        
+        // Check if user exists and is active
+        if (!user || !user.isActive) {
+          return done(null, false, { message: "Invalid username or account is inactive" });
+        }
+        
+        // Check password
+        const isValidPassword = await comparePasswords(password, user.password);
+        if (!isValidPassword) {
+          return done(null, false, { message: "Invalid password" });
+        }
+        
         return done(null, user);
+      } catch (error) {
+        return done(error);
       }
     }),
   );
 
   passport.serializeUser((user, done) => done(null, user.id));
   passport.deserializeUser(async (id: number, done) => {
-    const user = await storage.getUser(id);
-    done(null, user);
+    try {
+      const user = await storage.getUser(id);
+      
+      // Check if user is still active
+      if (!user || !user.isActive) {
+        return done(null, false);
+      }
+      
+      done(null, user);
+    } catch (error) {
+      done(error);
+    }
   });
 
-  app.post("/api/register", async (req, res, next) => {
-    try {
-      const { username, email, password, firstName, lastName } = req.body;
-      
-      if (!username || !email || !password) {
-        return res.status(400).json({ message: "Username, email, and password are required" });
-      }
-
-      const existingUser = await storage.getUserByUsername(username);
-      if (existingUser) {
-        return res.status(400).json({ message: "Username already exists" });
-      }
-
-      const existingEmail = await storage.getUserByEmail(email);
-      if (existingEmail) {
-        return res.status(400).json({ message: "Email already exists" });
-      }
-
-      const user = await storage.createUser({
-        username,
-        email,
-        password: await hashPassword(password),
-        firstName: firstName || null,
-        lastName: lastName || null,
-      });
-
-      req.login(user, (err) => {
-        if (err) return next(err);
-        res.status(201).json({ 
-          id: user.id, 
-          username: user.username, 
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName
-        });
-      });
-    } catch (error) {
-      console.error('Registration error:', error);
-      res.status(500).json({ message: "Registration failed" });
-    }
+  // Registration disabled - users are seeded by admin
+  app.post("/api/register", async (req, res) => {
+    res.status(403).json({ message: "Registration is disabled. Contact administrator for account access." });
   });
 
   app.post("/api/login", passport.authenticate("local"), (req, res) => {

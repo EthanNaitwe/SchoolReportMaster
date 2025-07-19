@@ -596,7 +596,7 @@ export class GoogleSheetsStorage implements IStorage {
       console.log(`Connected to spreadsheet: ${response.data.properties?.title}`);
 
       const existingSheets = response.data.sheets?.map(sheet => sheet.properties?.title) || [];
-      const requiredSheets = ['students', 'uploads', 'grades', 'report_cards'];
+      const requiredSheets = ['users', 'students', 'uploads', 'grades', 'report_cards'];
 
       // Create missing sheets
       for (const sheetName of requiredSheets) {
@@ -608,6 +608,9 @@ export class GoogleSheetsStorage implements IStorage {
 
       // Initialize headers for each sheet
       await this.initializeHeaders();
+      
+      // Seed users if none exist
+      await this.seedUsersIfEmpty();
       
       this.initialized = true;
       console.log('Google Sheets initialized successfully');
@@ -637,6 +640,7 @@ export class GoogleSheetsStorage implements IStorage {
 
   private async initializeHeaders() {
     const headers = {
+      users: ['id', 'username', 'email', 'password', 'firstName', 'lastName', 'isActive', 'createdAt', 'updatedAt'],
       students: ['id', 'studentId', 'name', 'grade', 'class', 'createdAt'],
       uploads: ['id', 'filename', 'originalName', 'fileSize', 'mimeType', 'status', 'uploadedBy', 'uploadedAt', 'approvedAt', 'approvedBy', 'validationResults', 'errorCount', 'validCount', 'totalCount'],
       grades: ['id', 'uploadId', 'studentId', 'studentName', 'subject', 'grade', 'numericGrade', 'gpa', 'class', 'term', 'academicYear', 'isValid', 'validationError', 'status', 'rejectionReason', 'reviewedBy', 'reviewedAt', 'createdAt'],
@@ -795,6 +799,21 @@ export class GoogleSheetsStorage implements IStorage {
     };
   }
 
+  private parseUser(row: any[]): User | null {
+    if (!row || row.length < 9) return null;
+    return {
+      id: parseInt(row[0]) || 0,
+      username: row[1] || '',
+      email: row[2] || '',
+      password: row[3] || '',
+      firstName: row[4] || null,
+      lastName: row[5] || null,
+      isActive: row[6] === 'true' || row[6] === true,
+      createdAt: new Date(row[7] || Date.now()),
+      updatedAt: new Date(row[8] || Date.now())
+    };
+  }
+
   private parseReportCard(row: any[]): ReportCard | null {
     if (!row || row.length < 11) return null;
     return {
@@ -810,6 +829,152 @@ export class GoogleSheetsStorage implements IStorage {
       generatedBy: row[9] || '',
       uploadId: parseInt(row[10]) || 0
     };
+  }
+
+  // Users
+  async getUser(id: number): Promise<User | undefined> {
+    await this.ensureInitialized();
+    const result = await this.findRowByColumn('users', 0, id);
+    return result ? this.parseUser(result.row) || undefined : undefined;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    await this.ensureInitialized();
+    const result = await this.findRowByColumn('users', 1, username);
+    return result ? this.parseUser(result.row) || undefined : undefined;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    await this.ensureInitialized();
+    const result = await this.findRowByColumn('users', 2, email);
+    return result ? this.parseUser(result.row) || undefined : undefined;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    await this.ensureInitialized();
+    const id = await this.getNextId('users');
+    const user: User = {
+      ...insertUser,
+      id,
+      isActive: insertUser.isActive ?? true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const values = [
+      user.id,
+      user.username,
+      user.email,
+      user.password,
+      user.firstName || '',
+      user.lastName || '',
+      user.isActive,
+      user.createdAt.toISOString(),
+      user.updatedAt.toISOString()
+    ];
+
+    await this.appendRow('users', values);
+    return user;
+  }
+
+  async updateUser(id: number, userData: Partial<InsertUser>): Promise<User | undefined> {
+    const result = await this.findRowByColumn('users', 0, id);
+    if (!result) return undefined;
+
+    const existing = this.parseUser(result.row);
+    if (!existing) return undefined;
+
+    const updated: User = {
+      ...existing,
+      ...userData,
+      updatedAt: new Date()
+    };
+
+    const values = [
+      updated.id,
+      updated.username,
+      updated.email,
+      updated.password,
+      updated.firstName || '',
+      updated.lastName || '',
+      updated.isActive,
+      updated.createdAt.toISOString(),
+      updated.updatedAt.toISOString()
+    ];
+
+    await this.updateRow('users', result.rowIndex, values);
+    return updated;
+  }
+
+  private async seedUsersIfEmpty(): Promise<void> {
+    try {
+      // Check if users already exist
+      const { data } = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: 'users!A:A',
+      });
+
+      // If there are rows besides header, users already exist
+      if (data.values && data.values.length > 1) {
+        console.log('Users already exist, skipping seeding');
+        return;
+      }
+
+      console.log('No users found, seeding 5 default users...');
+      
+      // Create 5 seed users
+      const seedUsers: InsertUser[] = [
+        {
+          username: 'admin',
+          email: 'admin@school.edu',
+          password: 'admin123', // In production, this should be hashed
+          firstName: 'System',
+          lastName: 'Administrator',
+          isActive: true
+        },
+        {
+          username: 'teacher1',
+          email: 'sarah.johnson@school.edu',
+          password: 'teacher123',
+          firstName: 'Sarah',
+          lastName: 'Johnson',
+          isActive: true
+        },
+        {
+          username: 'teacher2',
+          email: 'mike.davis@school.edu',
+          password: 'teacher123',
+          firstName: 'Mike',
+          lastName: 'Davis',
+          isActive: true
+        },
+        {
+          username: 'coordinator',
+          email: 'lisa.wilson@school.edu',
+          password: 'coord123',
+          firstName: 'Lisa',
+          lastName: 'Wilson',
+          isActive: true
+        },
+        {
+          username: 'principal',
+          email: 'john.smith@school.edu',
+          password: 'principal123',
+          firstName: 'John',
+          lastName: 'Smith',
+          isActive: true
+        }
+      ];
+
+      // Add each user
+      for (const userData of seedUsers) {
+        await this.createUser(userData);
+      }
+
+      console.log('Successfully seeded 5 users');
+    } catch (error) {
+      console.error('Error seeding users:', error);
+    }
   }
 
   // Students
