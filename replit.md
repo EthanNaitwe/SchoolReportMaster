@@ -49,12 +49,12 @@ Preferred communication style: Simple, everyday language.
 4. **Report Cards**: Generated PDF reports with metadata
 
 ### Frontend Components
-- **Dashboard**: Main interface with stats overview and workflow management
-- **Upload Zone**: Drag-and-drop file upload with validation feedback
-- **Data Validation**: Review and approval interface for uploaded data
-- **Workflow Status**: Visual progress tracking for upload processing
-- **Reports Sidebar**: Report management and bulk generation tools
+- **Dashboard Page**: Overview stats and quick navigation to other sections
+- **Uploads Page**: File upload zone, data validation, and workflow status
+- **Reports Page**: Report management and generation interface
+- **Navigation Header**: Responsive navigation bar with page routing
 - **PDF Preview Modal**: Report preview and download functionality
+- **Component Library**: Reusable UI components (upload zone, data validation, etc.)
 
 ### Backend Services
 - **File Upload Handler**: Processes Excel files and extracts grade data
@@ -137,3 +137,5 @@ The application is designed to handle the complete lifecycle of academic report 
 - **Enhanced Table Display**: Student data now shows in academic report format with subjects as columns
 - **Status Tracking**: Visual indicators for record status with hover tooltips for rejection reasons
 - **Improved Workflow**: Granular control over data validation and approval process
+- **Multi-Page Navigation**: Split interface into 3 focused pages (Dashboard, Uploads, Reports)
+- **Google Sheets Integration**: Persistent data storage using Google Sheets API with automatic fallback
