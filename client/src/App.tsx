@@ -16,7 +16,9 @@ function Router() {
   return (
     <div className="min-h-screen bg-academic-bg">
       <Switch>
-        <Route path="/auth" component={AuthPage} />
+        <Route path="/auth">
+          <AuthPage />
+        </Route>
         <Route path="/">
           <NavigationHeader />
           <main>

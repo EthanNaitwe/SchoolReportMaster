@@ -73,16 +73,16 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Left side - Auth forms */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
         <div className="w-full max-w-md">
-          <div className="text-center mb-8">
+          <div className="text-center mb-6 lg:mb-8">
             <div className="flex items-center justify-center mb-4">
-              <GraduationCap className="h-8 w-8 text-primary mr-2" />
-              <h1 className="text-2xl font-bold">Tamayuz Report System</h1>
+              <GraduationCap className="h-6 w-6 sm:h-8 sm:w-8 text-primary mr-2" />
+              <h1 className="text-xl sm:text-2xl font-bold">Tamayuz Report System</h1>
             </div>
-            <p className="text-muted-foreground">
+            <p className="text-sm sm:text-base text-muted-foreground">
               Sign in to manage student reports and academic data
             </p>
           </div>
@@ -102,39 +102,41 @@ export default function AuthPage() {
                   </CardDescription>
                 </CardHeader>
                 <form onSubmit={loginForm.handleSubmit(onLogin)}>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-3 sm:space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="username">Username</Label>
+                      <Label htmlFor="username" className="text-sm">Username</Label>
                       <Input
                         id="username"
                         {...loginForm.register("username")}
                         placeholder="Enter your username"
+                        className="h-10 sm:h-11"
                       />
                       {loginForm.formState.errors.username && (
-                        <p className="text-sm text-destructive">
+                        <p className="text-xs sm:text-sm text-destructive">
                           {loginForm.formState.errors.username.message}
                         </p>
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="password">Password</Label>
+                      <Label htmlFor="password" className="text-sm">Password</Label>
                       <Input
                         id="password"
                         type="password"
                         {...loginForm.register("password")}
                         placeholder="Enter your password"
+                        className="h-10 sm:h-11"
                       />
                       {loginForm.formState.errors.password && (
-                        <p className="text-sm text-destructive">
+                        <p className="text-xs sm:text-sm text-destructive">
                           {loginForm.formState.errors.password.message}
                         </p>
                       )}
                     </div>
                   </CardContent>
-                  <CardFooter>
+                  <CardFooter className="pt-4">
                     <Button 
                       type="submit" 
-                      className="w-full"
+                      className="w-full h-10 sm:h-11"
                       disabled={loginMutation.isPending}
                     >
                       {loginMutation.isPending ? "Signing in..." : "Sign in"}
@@ -153,85 +155,91 @@ export default function AuthPage() {
                   </CardDescription>
                 </CardHeader>
                 <form onSubmit={registerForm.handleSubmit(onRegister)}>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                  <CardContent className="space-y-3 sm:space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="firstName">First Name</Label>
+                        <Label htmlFor="firstName" className="text-sm">First Name</Label>
                         <Input
                           id="firstName"
                           {...registerForm.register("firstName")}
                           placeholder="First name"
+                          className="h-10 sm:h-11"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="lastName">Last Name</Label>
+                        <Label htmlFor="lastName" className="text-sm">Last Name</Label>
                         <Input
                           id="lastName"
                           {...registerForm.register("lastName")}
                           placeholder="Last name"
+                          className="h-10 sm:h-11"
                         />
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="reg-username">Username</Label>
+                      <Label htmlFor="reg-username" className="text-sm">Username</Label>
                       <Input
                         id="reg-username"
                         {...registerForm.register("username")}
                         placeholder="Choose a username"
+                        className="h-10 sm:h-11"
                       />
                       {registerForm.formState.errors.username && (
-                        <p className="text-sm text-destructive">
+                        <p className="text-xs sm:text-sm text-destructive">
                           {registerForm.formState.errors.username.message}
                         </p>
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
+                      <Label htmlFor="email" className="text-sm">Email</Label>
                       <Input
                         id="email"
                         type="email"
                         {...registerForm.register("email")}
                         placeholder="Enter your email"
+                        className="h-10 sm:h-11"
                       />
                       {registerForm.formState.errors.email && (
-                        <p className="text-sm text-destructive">
+                        <p className="text-xs sm:text-sm text-destructive">
                           {registerForm.formState.errors.email.message}
                         </p>
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="reg-password">Password</Label>
+                      <Label htmlFor="reg-password" className="text-sm">Password</Label>
                       <Input
                         id="reg-password"
                         type="password"
                         {...registerForm.register("password")}
                         placeholder="Create a password"
+                        className="h-10 sm:h-11"
                       />
                       {registerForm.formState.errors.password && (
-                        <p className="text-sm text-destructive">
+                        <p className="text-xs sm:text-sm text-destructive">
                           {registerForm.formState.errors.password.message}
                         </p>
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="confirmPassword">Confirm Password</Label>
+                      <Label htmlFor="confirmPassword" className="text-sm">Confirm Password</Label>
                       <Input
                         id="confirmPassword"
                         type="password"
                         {...registerForm.register("confirmPassword")}
                         placeholder="Confirm your password"
+                        className="h-10 sm:h-11"
                       />
                       {registerForm.formState.errors.confirmPassword && (
-                        <p className="text-sm text-destructive">
+                        <p className="text-xs sm:text-sm text-destructive">
                           {registerForm.formState.errors.confirmPassword.message}
                         </p>
                       )}
                     </div>
                   </CardContent>
-                  <CardFooter>
+                  <CardFooter className="pt-4">
                     <Button 
                       type="submit" 
-                      className="w-full"
+                      className="w-full h-10 sm:h-11"
                       disabled={registerMutation.isPending}
                     >
                       {registerMutation.isPending ? "Creating account..." : "Create account"}
@@ -245,34 +253,59 @@ export default function AuthPage() {
       </div>
 
       {/* Right side - Hero section */}
-      <div className="flex-1 bg-muted/30 flex items-center justify-center p-8">
+      <div className="hidden lg:flex flex-1 bg-muted/30 items-center justify-center p-6 lg:p-8">
         <div className="max-w-md text-center">
-          <h2 className="text-3xl font-bold mb-6">Streamline Academic Management</h2>
-          <p className="text-muted-foreground mb-8">
+          <h2 className="text-2xl lg:text-3xl font-bold mb-4 lg:mb-6">Streamline Academic Management</h2>
+          <p className="text-sm lg:text-base text-muted-foreground mb-6 lg:mb-8">
             Upload student data, validate records, and generate professional report cards 
             with our comprehensive academic management system.
           </p>
           
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="flex flex-col items-center p-4 bg-background rounded-lg">
-              <Upload className="h-8 w-8 text-primary mb-2" />
+          <div className="grid grid-cols-2 gap-3 lg:gap-4 text-xs lg:text-sm">
+            <div className="flex flex-col items-center p-3 lg:p-4 bg-background rounded-lg">
+              <Upload className="h-6 w-6 lg:h-8 lg:w-8 text-primary mb-2" />
               <span className="font-medium">Easy Upload</span>
               <span className="text-muted-foreground">Excel file processing</span>
             </div>
-            <div className="flex flex-col items-center p-4 bg-background rounded-lg">
-              <FileText className="h-8 w-8 text-primary mb-2" />
+            <div className="flex flex-col items-center p-3 lg:p-4 bg-background rounded-lg">
+              <FileText className="h-6 w-6 lg:h-8 lg:w-8 text-primary mb-2" />
               <span className="font-medium">Data Validation</span>
               <span className="text-muted-foreground">Automatic verification</span>
             </div>
-            <div className="flex flex-col items-center p-4 bg-background rounded-lg">
-              <BarChart3 className="h-8 w-8 text-primary mb-2" />
+            <div className="flex flex-col items-center p-3 lg:p-4 bg-background rounded-lg">
+              <BarChart3 className="h-6 w-6 lg:h-8 lg:w-8 text-primary mb-2" />
               <span className="font-medium">Analytics</span>
               <span className="text-muted-foreground">Performance insights</span>
             </div>
-            <div className="flex flex-col items-center p-4 bg-background rounded-lg">
-              <GraduationCap className="h-8 w-8 text-primary mb-2" />
+            <div className="flex flex-col items-center p-3 lg:p-4 bg-background rounded-lg">
+              <GraduationCap className="h-6 w-6 lg:h-8 lg:w-8 text-primary mb-2" />
               <span className="font-medium">PDF Reports</span>
               <span className="text-muted-foreground">Professional output</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Mobile bottom section with key features */}
+      <div className="lg:hidden bg-muted/30 p-4 sm:p-6">
+        <div className="text-center">
+          <h2 className="text-lg sm:text-xl font-bold mb-3">Academic Management Features</h2>
+          <div className="flex justify-center space-x-6">
+            <div className="flex flex-col items-center">
+              <Upload className="h-5 w-5 text-primary mb-1" />
+              <span className="text-xs font-medium">Upload</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <FileText className="h-5 w-5 text-primary mb-1" />
+              <span className="text-xs font-medium">Validate</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <BarChart3 className="h-5 w-5 text-primary mb-1" />
+              <span className="text-xs font-medium">Analytics</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <GraduationCap className="h-5 w-5 text-primary mb-1" />
+              <span className="text-xs font-medium">Reports</span>
             </div>
           </div>
         </div>
