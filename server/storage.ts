@@ -4,7 +4,7 @@ import {
   type Upload, type InsertUpload,
   type Grade, type InsertGrade,
   type ReportCard, type InsertReportCard
-} from "@shared/schema";
+} from "../shared/schema.ts";
 
 export interface IStorage {
   // Students

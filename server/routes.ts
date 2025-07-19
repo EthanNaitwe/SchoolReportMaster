@@ -1,10 +1,10 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage } from "./storage.ts";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import PDFDocument from "pdfkit";
-import { insertUploadSchema, insertGradeSchema } from "@shared/schema";
+// import { insertUploadSchema, insertGradeSchema } from "@shared/schema.ts";
 import { z } from "zod";
 
 // Configure multer for file uploads
@@ -125,7 +125,7 @@ function calculateGPA(grade: string): string {
 export async function registerRoutes(app: Express): Promise<Server> {
   
   // Download sample Excel template
-  app.get("/api/template/download", async (req, res) => {
+  app.get("/api/template/download", async (req: any, res: any) => {
     try {
       // Create sample data matching the user's format
       const sampleData = [
@@ -176,7 +176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get dashboard stats
-  app.get("/api/dashboard/stats", async (req, res) => {
+  app.get("/api/dashboard/stats", async (req: any, res: any) => {
     try {
       const stats = await storage.getDashboardStats();
       res.json(stats);
@@ -186,7 +186,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all uploads
-  app.get("/api/uploads", async (req, res) => {
+  app.get("/api/uploads", async (req: any, res: any) => {
     try {
       const uploads = await storage.getAllUploads();
       res.json(uploads);
@@ -196,7 +196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get upload by ID
-  app.get("/api/uploads/:id", async (req, res) => {
+  app.get("/api/uploads/:id", async (req: any, res: any) => {
     try {
       const id = parseInt(req.params.id);
       const upload = await storage.getUpload(id);
@@ -210,7 +210,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload Excel file
-  app.post("/api/uploads", upload.single('file'), async (req, res) => {
+  app.post("/api/uploads", upload.single('file'), async (req: any, res: any) => {
     try {
       console.log('Upload request received');
       console.log('Request headers:', req.headers);
@@ -261,7 +261,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get grades for an upload
-  app.get("/api/uploads/:id/grades", async (req, res) => {
+  app.get("/api/uploads/:id/grades", async (req: any, res: any) => {
     try {
       const uploadId = parseInt(req.params.id);
       const grades = await storage.getGradesByUpload(uploadId);
@@ -272,7 +272,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Approve upload
-  app.post("/api/uploads/:id/approve", async (req, res) => {
+  app.post("/api/uploads/:id/approve", async (req: any, res: any) => {
     try {
       const id = parseInt(req.params.id);
       const upload = await storage.updateUpload(id, {
@@ -292,7 +292,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Reject upload
-  app.post("/api/uploads/:id/reject", async (req, res) => {
+  app.post("/api/uploads/:id/reject", async (req: any, res: any) => {
     try {
       const id = parseInt(req.params.id);
       const upload = await storage.updateUpload(id, {
@@ -312,7 +312,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate PDF report for a student
-  app.post("/api/reports/generate", async (req, res) => {
+  app.post("/api/reports/generate", async (req: any, res: any) => {
     try {
       const { uploadId, studentId } = req.body;
 
@@ -338,7 +338,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const doc = new PDFDocument();
       const chunks: Buffer[] = [];
 
-      doc.on('data', chunk => chunks.push(chunk));
+      doc.on('data', (chunk: any) => chunks.push(chunk));
       doc.on('end', async () => {
         const pdfBuffer = Buffer.concat(chunks);
         
@@ -409,7 +409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all report cards
-  app.get("/api/reports", async (req, res) => {
+  app.get("/api/reports", async (req: any, res: any) => {
     try {
       const reportCards = await storage.getAllReportCards();
       res.json(reportCards);
@@ -419,7 +419,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Approve individual student record
-  app.post("/api/uploads/:uploadId/students/:studentId/approve", async (req, res) => {
+  app.post("/api/uploads/:uploadId/students/:studentId/approve", async (req: any, res: any) => {
     try {
       const uploadId = parseInt(req.params.uploadId);
       const studentId = req.params.studentId;
@@ -450,7 +450,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Reject individual student record with reason
-  app.post("/api/uploads/:uploadId/students/:studentId/reject", async (req, res) => {
+  app.post("/api/uploads/:uploadId/students/:studentId/reject", async (req: any, res: any) => {
     try {
       const uploadId = parseInt(req.params.uploadId);
       const studentId = req.params.studentId;
@@ -487,7 +487,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate bulk reports for an upload
-  app.post("/api/reports/bulk/:uploadId", async (req, res) => {
+  app.post("/api/reports/bulk/:uploadId", async (req: any, res: any) => {
     try {
       const uploadId = parseInt(req.params.uploadId);
       const upload = await storage.getUpload(uploadId);
