@@ -1,4 +1,4 @@
-import express, { type Request, Response, NextFunction } from "express";
+import express from "express";
 import { registerRoutes } from "./routes.js";
 import { setupVite, serveStatic, log } from "./vite.js";
 
@@ -18,7 +18,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+  let capturedJsonResponse = undefined;
 
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
@@ -51,7 +51,7 @@ app.use((req, res, next) => {
     const server = await registerRoutes(app);
     console.log('Routes registered successfully');
 
-    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    app.use((err, _req, res, _next) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
 

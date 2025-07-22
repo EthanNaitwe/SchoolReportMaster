@@ -1,23 +1,15 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
-import { Express } from "express";
 import session from "express-session";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage.js";
-import { User as SelectUser } from "@shared/schema";
 
-declare global {
-  namespace Express {
-    interface User extends SelectUser {}
-  }
-}
-
-export async function hashPassword(password: string): Promise<string> {
+export async function hashPassword(password) {
   const salt = await bcrypt.genSalt(10);
   return bcrypt.hash(password, salt);
 }
 
-export async function comparePasswords(supplied: string, stored: string): Promise<boolean> {
+export async function comparePasswords(supplied, stored) {
   // If password is not hashed (plain text from seeding), hash it first
   if (!stored.startsWith('$2')) {
     return supplied === stored;
@@ -25,8 +17,8 @@ export async function comparePasswords(supplied: string, stored: string): Promis
   return bcrypt.compare(supplied, stored);
 }
 
-export async function setupAuth(app: Express) {
-  const sessionSettings: session.SessionOptions = {
+export async function setupAuth(app) {
+  const sessionSettings = {
     secret: process.env.SESSION_SECRET || 'dev-secret-key-change-in-production',
     resave: false,
     saveUninitialized: false,
@@ -67,7 +59,7 @@ export async function setupAuth(app: Express) {
   );
 
   passport.serializeUser((user, done) => done(null, user.id));
-  passport.deserializeUser(async (id: number, done) => {
+  passport.deserializeUser(async (id, done) => {
     try {
       const user = await storage.getUser(id);
       
@@ -88,7 +80,7 @@ export async function setupAuth(app: Express) {
   });
 
   app.post("/api/login", passport.authenticate("local"), (req, res) => {
-    const user = req.user!;
+    const user = req.user;
     res.status(200).json({ 
       id: user.id, 
       username: user.username, 
@@ -107,7 +99,7 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const user = req.user!;
+    const user = req.user;
     res.json({ 
       id: user.id, 
       username: user.username, 
@@ -118,7 +110,7 @@ export async function setupAuth(app: Express) {
   });
 }
 
-export function isAuthenticated(req: any, res: any, next: any) {
+export function isAuthenticated(req, res, next) {
   if (req.isAuthenticated()) {
     return next();
   }

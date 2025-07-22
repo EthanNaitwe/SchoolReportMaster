@@ -1,11 +1,9 @@
-import type { Express } from "express";
-import { createServer, type Server } from "http";
+import { createServer } from "http";
 import { storage } from "./storage.js";
 import { setupAuth, isAuthenticated } from "./replitAuth.js";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import PDFDocument from "pdfkit";
-import { insertUploadSchema, insertGradeSchema } from "@shared/schema";
 import { z } from "zod";
 
 // Configure multer for file uploads
@@ -27,12 +25,12 @@ const upload = multer({
 // Grade validation - supports both numeric (0-100) and letter grades
 const validLetterGrades = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F'];
 
-function isValidNumericGrade(grade: any): boolean {
+function isValidNumericGrade(grade) {
   const num = parseFloat(grade);
   return !isNaN(num) && num >= 0 && num <= 100;
 }
 
-function convertNumericToLetterGrade(numericGrade: number): string {
+function convertNumericToLetterGrade(numericGrade) {
   if (numericGrade >= 97) return 'A+';
   if (numericGrade >= 93) return 'A';
   if (numericGrade >= 90) return 'A-';
@@ -48,7 +46,7 @@ function convertNumericToLetterGrade(numericGrade: number): string {
   return 'F';
 }
 
-function validateGradeData(data: any[]) {
+function validateGradeData(data) {
   const validatedGrades = [];
   const errors = [];
 
@@ -112,8 +110,8 @@ function validateGradeData(data: any[]) {
   return { validatedGrades, errors };
 }
 
-function calculateGPA(grade: string): string {
-  const gpaMap: Record<string, string> = {
+function calculateGPA(grade) {
+  const gpaMap = {
     'A+': '4.0', 'A': '3.7', 'A-': '3.3',
     'B+': '3.0', 'B': '2.7', 'B-': '2.3',
     'C+': '2.0', 'C': '1.7', 'C-': '1.3',
@@ -123,7 +121,7 @@ function calculateGPA(grade: string): string {
   return gpaMap[grade] || '0.0';
 }
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app) {
   console.log('Setting up authentication...');
   
   // Auth middleware
@@ -136,7 +134,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', isAuthenticated, async (req, res) => {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
@@ -249,8 +247,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         originalName: req.file.originalname,
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
-        uploadedBy: req.user?.username || 'unknown', // Get from authenticated user
-        status: 'pending' as const,
+        uploadedBy: req.user?.username || 'unknown',
+        status: 'pending',
       };
 
       const upload = await storage.createUpload(uploadData);
@@ -301,7 +299,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const upload = await storage.updateUpload(id, {
         status: 'approved',
         approvedAt: new Date(),
-        approvedBy: req.user?.username || 'unknown', // Get from authenticated user
+        approvedBy: req.user?.username || 'unknown',
       });
 
       if (!upload) {
@@ -321,7 +319,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const upload = await storage.updateUpload(id, {
         status: 'rejected',
         approvedAt: new Date(),
-        approvedBy: req.user?.username || 'unknown', // Get from authenticated user
+        approvedBy: req.user?.username || 'unknown',
       });
 
       if (!upload) {
@@ -359,7 +357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create PDF
       const doc = new PDFDocument();
-      const chunks: Buffer[] = [];
+      const chunks = [];
 
       doc.on('data', chunk => chunks.push(chunk));
       doc.on('end', async () => {
@@ -459,7 +457,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const grade of studentGrades) {
         const updated = await storage.updateGrade(grade.id, {
           status: 'approved',
-          reviewedBy: req.user?.username || 'unknown', // Get from authenticated user
+          reviewedBy: req.user?.username || 'unknown',
           reviewedAt: new Date(),
         });
         if (updated) updatedGrades.push(updated);
@@ -496,7 +494,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const updated = await storage.updateGrade(grade.id, {
           status: 'rejected',
           rejectionReason: reason,
-          reviewedBy: req.user?.username || 'unknown', // Get from authenticated user
+          reviewedBy: req.user?.username || 'unknown',
           reviewedAt: new Date(),
         });
         if (updated) updatedGrades.push(updated);
