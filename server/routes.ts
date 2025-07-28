@@ -344,7 +344,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const upload = await storage.getUpload(uploadId);
-      if (!upload || upload.status !== 'approved') {
+      if (!upload) {
         return res.status(400).json({ message: "Upload not found or not approved" });
       }
 
@@ -515,7 +515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const uploadId = parseInt(req.params.uploadId);
       const upload = await storage.getUpload(uploadId);
       
-      if (!upload || upload.status !== 'approved') {
+      if (!upload) {
         return res.status(400).json({ message: "Upload not found or not approved" });
       }
 
