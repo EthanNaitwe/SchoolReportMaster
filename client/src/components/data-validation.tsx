@@ -145,7 +145,7 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-academic-text">{uniqueStudents.length}</div>
-                  <div className="text-sm text-gray-600">Total Students</div>
+                  <div className="text-sm text-gray-600">Total Studentsz</div>
                 </div>
               </div>
             </div>
@@ -262,7 +262,7 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
               <div className="text-sm text-gray-600 text-center">
                 <span className="text-approval-green font-medium">{studentsWithValidGrades.size} students with valid data</span> • 
                 <span className="text-academic-error font-medium ml-1">{studentsWithInvalidGrades.size} students with errors</span> • 
-                <span className="text-academic-text ml-1">{uniqueStudents.length} total students</span>
+                <span className="text-academic-text ml-1">{uniqueStudents.length} total studentsz</span>
               </div>
             </div>
           </>
