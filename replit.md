@@ -6,6 +6,13 @@ This is a full-stack TypeScript application built for managing academic report c
 
 ## Recent Changes
 
+**July 28, 2025**
+- ✓ Updated record counting system to count unique students instead of total grade records
+- ✓ Modified backend upload processing to count distinct students for validation
+- ✓ Updated frontend data validation components to display student counts correctly
+- ✓ Enhanced workflow status component to show "students valid" instead of "records valid"
+- ✓ Improved user experience by showing meaningful student-based statistics throughout the application
+
 **July 22, 2025**
 - ✓ Converted all server-side TypeScript files to JavaScript (.js extension)
 - ✓ Created JavaScript versions: index.js, routes.js, storage.js, replitAuth.js, vite.js

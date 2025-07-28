@@ -157,7 +157,7 @@ export default function WorkflowStatus({ uploadId }: WorkflowStatusProps) {
                 <div className="flex justify-between mt-1">
                   <span className="text-gray-600">Data Quality:</span>
                   <span className="font-medium text-academic-text">
-                    {upload.validCount}/{upload.totalCount} valid
+                    {upload.validCount}/{upload.totalCount} students valid
                   </span>
                 </div>
               )}

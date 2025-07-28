@@ -177,7 +177,7 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
   const validGrades = grades.filter(g => g.isValid);
   const invalidGrades = grades.filter(g => !g.isValid);
 
-  // Get unique students for individual PDF generation
+  // Get unique students for counting and individual PDF generation
   const uniqueStudents = grades.reduce((acc, grade) => {
     if (!acc.find(s => s.studentId === grade.studentId)) {
       acc.push({
@@ -187,6 +187,17 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
     }
     return acc;
   }, [] as { studentId: string; studentName: string }[]);
+
+  // Count unique students with valid/invalid grades
+  const studentsWithValidGrades = new Set();
+  const studentsWithInvalidGrades = new Set();
+  grades.forEach(grade => {
+    if (grade.isValid) {
+      studentsWithValidGrades.add(grade.studentId);
+    } else {
+      studentsWithInvalidGrades.add(grade.studentId);
+    }
+  });
 
   // Group grades by student for table display
   const studentData = grades.reduce((acc, grade) => {
@@ -254,16 +265,16 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
             <div className="mb-6 p-4 bg-gray-50 rounded-lg">
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <div className="text-2xl font-bold text-approval-green">{validGrades.length}</div>
-                  <div className="text-sm text-gray-600">Valid Records</div>
+                  <div className="text-2xl font-bold text-approval-green">{studentsWithValidGrades.size}</div>
+                  <div className="text-sm text-gray-600">Students with Valid Data</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-academic-error">{invalidGrades.length}</div>
-                  <div className="text-sm text-gray-600">Errors</div>
+                  <div className="text-2xl font-bold text-academic-error">{studentsWithInvalidGrades.size}</div>
+                  <div className="text-sm text-gray-600">Students with Errors</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-academic-text">{grades.length}</div>
-                  <div className="text-sm text-gray-600">Total Records</div>
+                  <div className="text-2xl font-bold text-academic-text">{uniqueStudents.length}</div>
+                  <div className="text-sm text-gray-600">Total Students</div>
                 </div>
               </div>
             </div>
@@ -409,18 +420,18 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
               </table>
             </div>
 
-            {grades.length > 10 && (
+            {uniqueStudents.length > 10 && (
               <div className="mt-4 text-sm text-gray-500 text-center">
-                Showing first 10 of {grades.length} records
+                Showing first 10 of {uniqueStudents.length} students
               </div>
             )}
 
             {/* Actions */}
             <div className="mt-6 p-4 bg-gray-50 flex justify-between items-center">
               <div className="text-sm text-gray-600">
-                <span className="text-approval-green font-medium">{validGrades.length} valid</span> • 
-                <span className="text-academic-error font-medium ml-1">{invalidGrades.length} errors</span> • 
-                <span className="text-academic-text ml-1">{grades.length} total records</span>
+                <span className="text-approval-green font-medium">{studentsWithValidGrades.size} students with valid data</span> • 
+                <span className="text-academic-error font-medium ml-1">{studentsWithInvalidGrades.size} students with errors</span> • 
+                <span className="text-academic-text ml-1">{uniqueStudents.length} total students</span>
               </div>
               <div className="space-x-3">
                 {upload.status === 'pending' && (
@@ -436,7 +447,7 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
                     <Button
                       className="bg-approval-green hover:bg-green-700 text-white"
                       onClick={() => approveMutation.mutate(upload.id)}
-                      disabled={approveMutation.isPending || invalidGrades.length > 0}
+                      disabled={approveMutation.isPending || studentsWithInvalidGrades.size > 0}
                     >
                       <Check className="mr-2 h-4 w-4" />
                       {approveMutation.isPending ? 'Approving...' : 'Approve Data'}

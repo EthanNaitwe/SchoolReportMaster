@@ -266,12 +266,29 @@ export async function registerRoutes(app) {
         validatedGrades.map(grade => ({ ...grade, uploadId: upload.id }))
       );
 
+      // Count unique students instead of total grade records
+      const uniqueStudentIds = new Set();
+      data.forEach(row => {
+        const studentId = row['Student ID'] || row.studentId || row['StudentID'] || row['ID'];
+        if (studentId) {
+          uniqueStudentIds.add(studentId);
+        }
+      });
+
+      // Count unique students in validated grades
+      const validStudentIds = new Set();
+      validatedGrades.forEach(grade => {
+        if (grade.studentId) {
+          validStudentIds.add(grade.studentId);
+        }
+      });
+
       // Update upload with validation results
       const updatedUpload = await storage.updateUpload(upload.id, {
         validationResults: { validatedGrades, errors },
         errorCount: errors.length,
-        validCount: validatedGrades.length,
-        totalCount: data.length,
+        validCount: validStudentIds.size,
+        totalCount: uniqueStudentIds.size,
       });
 
       res.status(201).json({ upload: updatedUpload, grades, errors });
