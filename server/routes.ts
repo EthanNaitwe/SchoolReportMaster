@@ -336,7 +336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Generate PDF report for a student
   app.post("/api/reports/generate", isAuthenticated, async (req, res) => {
-    console.log("Upload not found or not approved 3");
+    console.log("3 Upload not found or not approved");
     try {
       const { uploadId, studentId } = req.body;
 
@@ -512,6 +512,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Generate bulk reports for an upload
   app.post("/api/reports/bulk/:uploadId", isAuthenticated, async (req, res) => {
+    console.log("4 Upload not found or not approved")
     try {
       const uploadId = parseInt(req.params.uploadId);
       const upload = await storage.getUpload(uploadId);

@@ -324,7 +324,7 @@ export async function registerRoutes(app) {
 
   // Generate PDF report for a student
   app.post("/api/reports/generate", isAuthenticated, async (req, res) => {
-    console.log("Upload not found or not approved 1")
+    console.log("1 Upload not found or not approved")
     try {
       const { uploadId, studentId } = req.body;
 
@@ -434,6 +434,7 @@ export async function registerRoutes(app) {
 
   // Generate bulk reports for an upload
   app.post("/api/reports/bulk/:uploadId", isAuthenticated, async (req, res) => {
+    console.log("2 Upload not found or not approved")
     try {
       const uploadId = parseInt(req.params.uploadId);
       const upload = await storage.getUpload(uploadId);
