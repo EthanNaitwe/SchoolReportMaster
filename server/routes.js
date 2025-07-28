@@ -324,7 +324,6 @@ export async function registerRoutes(app) {
 
   // Generate PDF report for a student
   app.post("/api/reports/generate", isAuthenticated, async (req, res) => {
-    console.log("1 Upload not found or not approved")
     try {
       const { uploadId, studentId } = req.body;
 
@@ -334,7 +333,7 @@ export async function registerRoutes(app) {
 
       const upload = await storage.getUpload(uploadId);
       if (!upload) {
-        return res.status(400).json({ message: "Upload not found or not approved 1" });
+        return res.status(400).json({ message: "Upload not found" });
       }
 
       const grades = await storage.getGradesByUpload(uploadId);
@@ -371,47 +370,87 @@ export async function registerRoutes(app) {
         res.send(pdfBuffer);
       });
 
-      // Generate PDF content
-      doc.fontSize(20).text('Academic Report Card', 50, 50, { align: 'center' });
-      doc.fontSize(16).text('Tamayuz Junior School', 50, 80, { align: 'center' });
-      doc.fontSize(12).text(`Academic Year: ${studentInfo.academicYear} • Term: ${studentInfo.term}`, 50, 110, { align: 'center' });
+      // Generate PDF content in table format matching the template
+      doc.fontSize(18).text('Academic Report Card', 50, 30, { align: 'center' });
+      doc.fontSize(14).text('Tamayuz Junior School', 50, 55, { align: 'center' });
+      doc.fontSize(10).text(`Academic Year: ${studentInfo.academicYear} • Term: ${studentInfo.term}`, 50, 75, { align: 'center' });
 
-      doc.fontSize(14).text('Student Information', 50, 150);
-      doc.fontSize(12)
-        .text(`Name: ${studentInfo.studentName}`, 50, 175)
-        .text(`Student ID: ${studentInfo.studentId}`, 50, 195)
-        .text(`Grade: 7th`, 50, 215) // This should come from student data
-        .text(`Class: 7-A`, 50, 235); // This should come from student data
+      // Table headers - starting position
+      let yPosition = 120;
+      const tableLeft = 40;
+      const columnWidths = [80, 100, 60, 80, 40, 80, 40, 80, 40, 80, 40]; // Column widths
+      let xPosition = tableLeft;
 
-      doc.fontSize(14).text('Academic Performance', 50, 270);
-
-      let yPosition = 300;
-      doc.fontSize(12)
-        .text('Subject', 50, yPosition)
-        .text('Score', 150, yPosition)
-        .text('Grade', 220, yPosition)
-        .text('GPA', 300, yPosition);
-
-      yPosition += 20;
-      doc.moveTo(50, yPosition).lineTo(400, yPosition).stroke();
-      yPosition += 10;
-
-      for (const grade of studentGrades) {
-        doc.text(grade.subject, 50, yPosition)
-          .text(grade.numericGrade || '-', 150, yPosition)
-          .text(grade.grade, 220, yPosition)
-          .text(grade.gpa || '0.0', 300, yPosition);
-        yPosition += 20;
+      // Draw table header
+      doc.fontSize(10).font('Helvetica-Bold');
+      
+      // Header row
+      doc.text('Student ID', xPosition, yPosition);
+      xPosition += columnWidths[0];
+      doc.text('Name', xPosition, yPosition);
+      xPosition += columnWidths[1];
+      doc.text('Class', xPosition, yPosition);
+      xPosition += columnWidths[2];
+      
+      // Add subject columns with score and grade
+      const subjects = [...new Set(studentGrades.map(g => g.subject))].sort();
+      let subjectIndex = 3;
+      
+      for (const subject of subjects) {
+        if (subjectIndex + 1 < columnWidths.length) {
+          doc.text(subject, xPosition, yPosition);
+          xPosition += columnWidths[subjectIndex];
+          doc.text(`${subject} Grade`, xPosition, yPosition);
+          xPosition += columnWidths[subjectIndex + 1];
+          subjectIndex += 2;
+        }
       }
 
-      // Calculate overall GPA
+      // Draw header underline
+      yPosition += 15;
+      doc.moveTo(tableLeft, yPosition).lineTo(tableLeft + columnWidths.reduce((a, b) => a + b, 0), yPosition).stroke();
+      yPosition += 10;
+
+      // Student data row
+      doc.font('Helvetica').fontSize(10);
+      xPosition = tableLeft;
+      
+      doc.text(studentInfo.studentId, xPosition, yPosition);
+      xPosition += columnWidths[0];
+      doc.text(studentInfo.studentName, xPosition, yPosition);
+      xPosition += columnWidths[1];
+      doc.text(studentInfo.class || 'S1A', xPosition, yPosition);
+      xPosition += columnWidths[2];
+      
+      // Add grades for each subject
+      subjectIndex = 3;
+      for (const subject of subjects) {
+        const gradeData = studentGrades.find(g => g.subject === subject);
+        if (gradeData && subjectIndex + 1 < columnWidths.length) {
+          doc.text(gradeData.numericGrade || '-', xPosition, yPosition);
+          xPosition += columnWidths[subjectIndex];
+          doc.text(gradeData.grade || '-', xPosition, yPosition);
+          xPosition += columnWidths[subjectIndex + 1];
+          subjectIndex += 2;
+        }
+      }
+
+      // Calculate and show overall performance
+      yPosition += 40;
       const totalGPA = studentGrades.reduce((sum, g) => sum + parseFloat(g.gpa || '0'), 0);
       const avgGPA = studentGrades.length > 0 ? (totalGPA / studentGrades.length).toFixed(2) : '0.00';
-
+      const avgScore = studentGrades.reduce((sum, g) => sum + (g.numericGrade || 0), 0) / studentGrades.length;
+      
+      doc.fontSize(12).font('Helvetica-Bold')
+        .text('Summary:', tableLeft, yPosition);
+      
       yPosition += 20;
-      doc.fontSize(14).text(`Overall GPA: ${avgGPA}`, 50, yPosition);
+      doc.font('Helvetica').fontSize(10)
+        .text(`Overall Average Score: ${avgScore.toFixed(1)}`, tableLeft, yPosition)
+        .text(`Overall GPA: ${avgGPA}`, tableLeft + 200, yPosition);
 
-      doc.fontSize(10).text(`Generated: ${new Date().toLocaleDateString()}`, 50, yPosition + 50);
+      yPosition += 30;
+      doc.fontSize(8).text(`Generated: ${new Date().toLocaleDateString()} | Tamayuz Junior School Report System`, tableLeft, yPosition);
 
       doc.end();
     } catch (error) {
@@ -434,13 +473,12 @@ export async function registerRoutes(app) {
 
   // Generate bulk reports for an upload
   app.post("/api/reports/bulk/:uploadId", isAuthenticated, async (req, res) => {
-    console.log("2 Upload not found or not approved")
     try {
       const uploadId = parseInt(req.params.uploadId);
       const upload = await storage.getUpload(uploadId);
       
       if (!upload) {
-        return res.status(400).json({ message: "Upload not found or not approved 2" });
+        return res.status(400).json({ message: "Upload not found" });
       }
 
       const grades = await storage.getGradesByUpload(uploadId);

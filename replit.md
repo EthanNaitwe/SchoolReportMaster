@@ -18,6 +18,13 @@ This is a full-stack TypeScript application built for managing academic report c
 - ✓ Modified workflow status to show 3 steps instead of 4 (removed admin approval step)
 - ✓ Updated dashboard stats to show "Recent Uploads" instead of "Pending Approval"
 - ✓ Enhanced upload flow to automatically display validation results immediately after upload
+- ✓ Fixed critical PDF generation bug caused by upload status mismatch between 'pending' and 'approved'
+- ✓ Updated storage logic to properly preserve 'approved' status during upload creation
+- ✓ Reformatted PDF reports to match attached template showing tabular layout with subjects and grades
+- ✓ Implemented spreadsheet-style PDF format with Student ID, Name, Class, and subject columns
+- ✓ Enhanced PDF layout to show both numeric scores and letter grades for each subject
+- ✓ Added summary section with overall average score and GPA calculations
+- ✓ Cleaned up debug logging and error messages in report generation routes
 
 **July 22, 2025**
 - ✓ Converted all server-side TypeScript files to JavaScript (.js extension)
