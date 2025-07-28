@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Download, X } from "lucide-react";
+import { Download, X, CloudUpload } from "lucide-react";
 import type { Upload, Grade } from "@shared/schema";
 
 interface DataValidationProps {
@@ -29,14 +29,14 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
             Data Validation Results
           </CardTitle>
           <p className="text-sm text-gray-600 mt-1">
-            Select an upload to view student data and validation results
+            Upload a file to automatically see validation results here
           </p>
         </CardHeader>
         <CardContent>
           <div className="text-center py-12 text-gray-500">
-            <X className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-            <p>No upload selected</p>
-            <p className="text-sm">Choose an upload from the recent uploads list to view validation details</p>
+            <CloudUpload className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+            <p>Ready for upload</p>
+            <p className="text-sm">Validation results will appear automatically after file upload</p>
           </div>
         </CardContent>
       </Card>
