@@ -118,7 +118,7 @@ export default function PDFPreviewModal({
           <div className="bg-white border border-gray-300 rounded-lg p-8 mx-auto max-w-2xl shadow-sm" 
                style={{ aspectRatio: '8.5/11' }}>
             <div className="text-center mb-6">
-              <h1 className="text-2xl font-bold text-academic-text">Riverside Elementary School</h1>
+              <h1 className="text-2xl font-bold text-academic-text">Tamayuz Junior School</h1>
               <p className="text-lg text-gray-600 mt-2">Student Report Card</p>
               <div className="border-t border-b border-gray-300 py-2 mt-4">
                 <p className="text-sm text-gray-600">

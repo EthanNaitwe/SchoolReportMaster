@@ -384,7 +384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Generate PDF content
       doc.fontSize(20).text('Academic Report Card', 50, 50, { align: 'center' });
-      doc.fontSize(16).text('Riverside Elementary School', 50, 80, { align: 'center' });
+      doc.fontSize(16).text('Tamayuz Junior School', 50, 80, { align: 'center' });
       doc.fontSize(12).text(`Academic Year: ${studentInfo.academicYear} • Term: ${studentInfo.term}`, 50, 110, { align: 'center' });
 
       doc.fontSize(14).text('Student Information', 50, 150);
