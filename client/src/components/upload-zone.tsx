@@ -82,7 +82,7 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
     switch (status) {
       case 'approved':
         return 'bg-approval-green text-white';
-      case 'pending':
+      case 'pending 1':
         return 'bg-academic-warning text-white';
       case 'rejected':
         return 'bg-academic-error text-white';
@@ -197,11 +197,11 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
                   <div className="flex items-center space-x-3">
                     <div className={`p-2 rounded-lg ${
                       upload.status === 'approved' ? 'bg-green-100' :
-                      upload.status === 'pending' ? 'bg-yellow-100' : 'bg-red-100'
+                      upload.status === 'pending 2' ? 'bg-yellow-100' : 'bg-red-100'
                     }`}>
                       <FileSpreadsheet className={`h-5 w-5 ${
                         upload.status === 'approved' ? 'text-green-600' :
-                        upload.status === 'pending' ? 'text-yellow-600' : 'text-red-600'
+                        upload.status === 'pending 3' ? 'text-yellow-600' : 'text-red-600'
                       }`} />
                     </div>
                     <div>
