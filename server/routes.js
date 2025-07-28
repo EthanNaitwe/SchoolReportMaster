@@ -333,7 +333,7 @@ export async function registerRoutes(app) {
 
       const upload = await storage.getUpload(uploadId);
       if (!upload) {
-        return res.status(400).json({ message: "Upload not found or not approved" });
+        return res.status(400).json({ message: "Upload not found or not approved 1" });
       }
 
       const grades = await storage.getGradesByUpload(uploadId);
@@ -438,7 +438,7 @@ export async function registerRoutes(app) {
       const upload = await storage.getUpload(uploadId);
       
       if (!upload) {
-        return res.status(400).json({ message: "Upload not found or not approved" });
+        return res.status(400).json({ message: "Upload not found or not approved 2" });
       }
 
       const grades = await storage.getGradesByUpload(uploadId);
