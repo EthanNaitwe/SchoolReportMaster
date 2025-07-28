@@ -218,19 +218,19 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  {/* <div className="flex items-center space-x-2">
                     <Badge className={`text-xs ${getStatusColor(upload.status)}`}>
                       {upload.status.charAt(0).toUpperCase() + upload.status.slice(1)}
                     </Badge>
-                    {/* <Button
+                    <Button
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-gray-400 hover:text-gray-600"
                       onClick={() => onUploadSuccess(upload.id)}
                     >
                       <MoreVertical className="h-4 w-4" />
-                    </Button> */}
-                  </div>
+                    </Button>
+                  </div> */}
                 </div>
               ))}
             </div>
