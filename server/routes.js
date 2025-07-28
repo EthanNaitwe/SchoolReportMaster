@@ -291,12 +291,15 @@ export async function registerRoutes(app) {
         }
       });
 
-      // Update upload with validation results
+      // Update upload with validation results and ensure approved status
       const updatedUpload = await storage.updateUpload(upload.id, {
         validationResults: { validatedGrades, errors },
         errorCount: errors.length,
         validCount: validStudentIds.size,
         totalCount: uniqueStudentIds.size,
+        status: 'approved',
+        approvedAt: new Date(),
+        approvedBy: req.user?.username || 'unknown',
       });
 
       res.status(201).json({ upload: updatedUpload, grades, errors });

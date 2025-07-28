@@ -114,11 +114,8 @@ export class MemStorage {
     const id = this.currentUploadId++;
     const upload = { 
       ...insertUpload,
-      status: insertUpload.status || 'pending',
       id, 
       uploadedAt: new Date(),
-      approvedAt: null,
-      approvedBy: null,
       validationResults: null,
       errorCount: 0,
       validCount: 0,
