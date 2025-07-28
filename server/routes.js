@@ -324,6 +324,7 @@ export async function registerRoutes(app) {
 
   // Generate PDF report for a student
   app.post("/api/reports/generate", isAuthenticated, async (req, res) => {
+    console.log("Upload not found or not approved 1")
     try {
       const { uploadId, studentId } = req.body;
 
