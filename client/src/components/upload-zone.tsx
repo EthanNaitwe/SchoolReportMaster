@@ -195,7 +195,7 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
               {uploads.slice(0, 5).map((upload) => (
                 <div
                   key={upload.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200"
+                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer"
                   onClick={() => onUploadSuccess(upload.id)}
                 >
                   <div className="flex items-center space-x-3">
