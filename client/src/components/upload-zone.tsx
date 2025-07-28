@@ -214,7 +214,7 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
                       </p>
                       <p className="text-xs text-gray-500">
                         {formatTimeAgo(upload.uploadedAt)} • {formatFileSize(upload.fileSize)}
-                        {upload.totalCount > 0 && ` • ${upload.totalCount} records`}
+                        {(upload.totalCount ?? 0) > 0 && ` • ${upload.totalCount} records`}
                       </p>
                     </div>
                   </div>
