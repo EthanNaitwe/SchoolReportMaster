@@ -194,6 +194,7 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
             <div className="space-y-3">
               {uploads.slice(0, 5).map((upload) => (
                 <div key={upload.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  here 1
                   <div className="flex items-center space-x-3">
                     <div className={`p-2 rounded-lg ${
                       upload.status === 'approved' ? 'bg-green-100' :
@@ -218,7 +219,7 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
                     className="flex items-center space-x-2"
                     onClick={() => onUploadSuccess(upload.id)}
                   >
-                    here
+                    here 2
                     <Badge className={`text-xs ${getStatusColor(upload.status)}`}>
                       {upload.status.charAt(0).toUpperCase() + upload.status.slice(1)}
                     </Badge>
