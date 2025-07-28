@@ -218,6 +218,7 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
                     className="flex items-center space-x-2"
                     onClick={() => onUploadSuccess(upload.id)}
                   >
+                    here
                     <Badge className={`text-xs ${getStatusColor(upload.status)}`}>
                       {upload.status.charAt(0).toUpperCase() + upload.status.slice(1)}
                     </Badge>
