@@ -37,13 +37,6 @@ export default function WorkflowStatus({ uploadId }: WorkflowStatusProps) {
         timestamp: upload.totalCount > 0 ? upload.uploadedAt : null
       },
       { 
-        title: "Admin Approval", 
-        status: upload.status === 'approved' ? "completed" : 
-                upload.status === 'rejected' ? "failed" : "in-progress", 
-        icon: Check,
-        timestamp: upload.approvedAt
-      },
-      { 
         title: "PDF Generation", 
         status: upload.status === 'approved' ? "available" : "pending", 
         icon: FileText,
@@ -110,9 +103,9 @@ export default function WorkflowStatus({ uploadId }: WorkflowStatusProps) {
     <Card className="bg-white border border-gray-100 shadow-sm">
       <CardHeader>
         <CardTitle className="text-lg font-medium text-academic-text">
-          Approval Workflow
+          Upload Status
         </CardTitle>
-        <p className="text-sm text-gray-600 mt-1">Track approval status</p>
+        <p className="text-sm text-gray-600 mt-1">Track upload processing status</p>
       </CardHeader>
       
       <CardContent>

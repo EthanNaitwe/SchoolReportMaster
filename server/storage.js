@@ -234,7 +234,12 @@ export class MemStorage {
     const allReportCards = Array.from(this.reportCards.values());
     
     const totalUploads = allUploads.length;
-    const pendingApproval = allUploads.filter(u => u.status === 'pending').length;
+    
+    // Count recent uploads (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const recentUploads = allUploads.filter(u => new Date(u.uploadedAt) >= sevenDaysAgo).length;
+    
     const reportsGenerated = allReportCards.length;
     
     const approvedUploads = allUploads.filter(u => u.status === 'approved').length;
@@ -242,7 +247,7 @@ export class MemStorage {
     
     return {
       totalUploads,
-      pendingApproval,
+      recentUploads,
       reportsGenerated,
       successRate: Math.round(successRate * 10) / 10
     };
@@ -692,12 +697,27 @@ export class GoogleSheetsStorage {
   async updateReportCard(id, reportCard) { /* Implementation similar to updateUser */ }
   
   async getDashboardStats() {
-    // Implementation to calculate stats from all data
+    await this.ensureInitialized();
+    const allUploads = await this.getAllUploads();
+    const allReportCards = await this.getAllReportCards();
+    
+    const totalUploads = allUploads.length;
+    
+    // Count recent uploads (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const recentUploads = allUploads.filter(u => new Date(u.uploadedAt) >= sevenDaysAgo).length;
+    
+    const reportsGenerated = allReportCards.length;
+    
+    const approvedUploads = allUploads.filter(u => u.status === 'approved').length;
+    const successRate = totalUploads > 0 ? (approvedUploads / totalUploads) * 100 : 0;
+    
     return {
-      totalUploads: 0,
-      pendingApproval: 0,
-      reportsGenerated: 0,
-      successRate: 0
+      totalUploads,
+      recentUploads,
+      reportsGenerated,
+      successRate: Math.round(successRate * 10) / 10
     };
   }
 }

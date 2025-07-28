@@ -1,15 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Check, X, Download, MessageSquare } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { Download, X } from "lucide-react";
 import type { Upload, Grade } from "@shared/schema";
-import { useState } from "react";
 
 interface DataValidationProps {
   uploadId: number | null;
@@ -17,12 +11,6 @@ interface DataValidationProps {
 }
 
 export default function DataValidation({ uploadId, onGeneratePDF }: DataValidationProps) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [rejectionDialogOpen, setRejectionDialogOpen] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<{studentId: string, studentName: string} | null>(null);
-  const [rejectionReason, setRejectionReason] = useState("");
-
   const { data: upload } = useQuery<Upload>({
     queryKey: ["/api/uploads", uploadId],
     enabled: !!uploadId,
@@ -33,132 +21,15 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
     enabled: !!uploadId,
   });
 
-  const approveMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const response = await apiRequest('POST', `/api/uploads/${id}/approve`);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Upload approved",
-        description: "The upload has been successfully approved.",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/uploads"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Approval failed",
-        description: error.message || "Failed to approve upload.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const response = await apiRequest('POST', `/api/uploads/${id}/reject`);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Upload rejected",
-        description: "The upload has been rejected.",
-        variant: "destructive",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/uploads"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Rejection failed",
-        description: error.message || "Failed to reject upload.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const approveStudentMutation = useMutation({
-    mutationFn: async ({ uploadId, studentId }: { uploadId: number; studentId: string }) => {
-      const response = await apiRequest('POST', `/api/uploads/${uploadId}/students/${studentId}/approve`);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Student record approved",
-        description: "The student's grades have been approved.",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/uploads", uploadId, "grades"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Approval failed",
-        description: error.message || "Failed to approve student record.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const rejectStudentMutation = useMutation({
-    mutationFn: async ({ uploadId, studentId, reason }: { uploadId: number; studentId: string; reason: string }) => {
-      const response = await apiRequest('POST', `/api/uploads/${uploadId}/students/${studentId}/reject`, {
-        reason
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Student record rejected",
-        description: "The student's grades have been rejected with feedback.",
-        variant: "destructive",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/uploads", uploadId, "grades"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      setRejectionDialogOpen(false);
-      setSelectedStudent(null);
-      setRejectionReason("");
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Rejection failed",
-        description: error.message || "Failed to reject student record.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleRejectStudent = (studentId: string, studentName: string) => {
-    setSelectedStudent({ studentId, studentName });
-    setRejectionDialogOpen(true);
-  };
-
-  const submitRejection = () => {
-    if (!selectedStudent || !rejectionReason.trim()) {
-      toast({
-        title: "Error",
-        description: "Please provide a reason for rejection.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    rejectStudentMutation.mutate({
-      uploadId: uploadId!,
-      studentId: selectedStudent.studentId,
-      reason: rejectionReason.trim()
-    });
-  };
-
   if (!uploadId || !upload) {
     return (
       <Card className="bg-white border border-gray-100 shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg font-medium text-academic-text">
-            Data Validation
+            Data Validation Results
           </CardTitle>
           <p className="text-sm text-gray-600 mt-1">
-            Select an upload to review data validation results
+            Select an upload to view student data and validation results
           </p>
         </CardHeader>
         <CardContent>
@@ -247,10 +118,10 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
     <Card className="bg-white border border-gray-100 shadow-sm">
       <CardHeader>
         <CardTitle className="text-lg font-medium text-academic-text">
-          Data Validation
+          Data Validation Results
         </CardTitle>
         <p className="text-sm text-gray-600 mt-1">
-          Review uploaded data before approval
+          View uploaded student data and validation results
         </p>
       </CardHeader>
       
@@ -353,55 +224,15 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
                           <div className="flex flex-col space-y-2">
                             <div className="flex items-center space-x-2">
                               <Badge className={`text-xs ${
-                                student.status === 'rejected' 
-                                  ? 'bg-red-500 text-white'
-                                  : student.status === 'approved'
-                                  ? 'bg-green-500 text-white'
-                                  : hasErrors 
+                                hasErrors 
                                   ? 'bg-academic-error text-white' 
                                   : 'bg-approval-green text-white'
                               }`}>
-                                {student.status === 'rejected' 
-                                  ? 'Rejected' 
-                                  : student.status === 'approved' 
-                                  ? 'Approved' 
-                                  : hasErrors 
-                                  ? 'Error' 
-                                  : 'Valid'}
+                                {hasErrors ? 'Has Errors' : 'Valid'}
                               </Badge>
-                              {student.status === 'rejected' && student.rejectionReason && (
-                                <div className="group relative">
-                                  <MessageSquare className="h-4 w-4 text-red-500 cursor-help" />
-                                  <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded p-2 whitespace-nowrap z-10 max-w-xs">
-                                    {student.rejectionReason}
-                                  </div>
-                                </div>
-                              )}
                             </div>
                             
-                            {student.status === 'pending' && (
-                              <div className="flex space-x-1">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-green-600 border-green-600 hover:bg-green-50"
-                                  onClick={() => approveStudentMutation.mutate({ uploadId: upload.id, studentId: student.studentId })}
-                                  disabled={approveStudentMutation.isPending}
-                                >
-                                  <Check className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-red-600 border-red-600 hover:bg-red-50"
-                                  onClick={() => handleRejectStudent(student.studentId, student.studentName)}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            )}
-                            
-                            {student.status === 'approved' && upload.status === 'approved' && (
+                            {!hasErrors && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -426,109 +257,17 @@ export default function DataValidation({ uploadId, onGeneratePDF }: DataValidati
               </div>
             )}
 
-            {/* Actions */}
-            <div className="mt-6 p-4 bg-gray-50 flex justify-between items-center">
-              <div className="text-sm text-gray-600">
+            {/* Summary Stats */}
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+              <div className="text-sm text-gray-600 text-center">
                 <span className="text-approval-green font-medium">{studentsWithValidGrades.size} students with valid data</span> • 
                 <span className="text-academic-error font-medium ml-1">{studentsWithInvalidGrades.size} students with errors</span> • 
                 <span className="text-academic-text ml-1">{uniqueStudents.length} total students</span>
-              </div>
-              <div className="space-x-3">
-                {upload.status === 'pending' && (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => rejectMutation.mutate(upload.id)}
-                      disabled={rejectMutation.isPending}
-                    >
-                      <X className="mr-2 h-4 w-4" />
-                      Reject
-                    </Button>
-                    <Button
-                      className="bg-approval-green hover:bg-green-700 text-white"
-                      onClick={() => approveMutation.mutate(upload.id)}
-                      disabled={approveMutation.isPending || studentsWithInvalidGrades.size > 0}
-                    >
-                      <Check className="mr-2 h-4 w-4" />
-                      {approveMutation.isPending ? 'Approving...' : 'Approve Data'}
-                    </Button>
-                  </>
-                )}
-                {upload.status === 'approved' && uniqueStudents.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-sm text-gray-600">Generate individual reports:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {uniqueStudents.slice(0, 5).map((student) => (
-                        <Button
-                          key={student.studentId}
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onGeneratePDF(upload.id, student.studentId)}
-                        >
-                          <Download className="mr-1 h-3 w-3" />
-                          {student.studentName}
-                        </Button>
-                      ))}
-                      {uniqueStudents.length > 5 && (
-                        <span className="text-sm text-gray-500 self-center">
-                          +{uniqueStudents.length - 5} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </>
         )}
       </CardContent>
-
-      {/* Rejection Dialog */}
-      <Dialog open={rejectionDialogOpen} onOpenChange={setRejectionDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Reject Student Record</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label className="text-sm font-medium">Student: {selectedStudent?.studentName}</Label>
-              <p className="text-sm text-gray-600">ID: {selectedStudent?.studentId}</p>
-            </div>
-            <div>
-              <Label htmlFor="rejection-reason" className="text-sm font-medium">
-                Reason for rejection *
-              </Label>
-              <Textarea
-                id="rejection-reason"
-                placeholder="Please provide a clear explanation of why this record is being rejected so the uploader can fix the issues..."
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                className="mt-1"
-                rows={4}
-              />
-            </div>
-            <div className="flex justify-end space-x-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setRejectionDialogOpen(false);
-                  setSelectedStudent(null);
-                  setRejectionReason("");
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={submitRejection}
-                disabled={rejectStudentMutation.isPending || !rejectionReason.trim()}
-              >
-                {rejectStudentMutation.isPending ? "Rejecting..." : "Reject Record"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }

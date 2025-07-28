@@ -38,12 +38,12 @@ export default function DashboardStats() {
       valueColor: "text-academic-text"
     },
     {
-      title: "Pending Approval",
-      value: stats?.pendingApproval || 0,
+      title: "Recent Uploads",
+      value: stats?.recentUploads || 0,
       icon: Clock,
-      bgColor: "bg-academic-warning bg-opacity-10",
-      textColor: "text-academic-warning",
-      valueColor: "text-academic-warning"
+      bgColor: "bg-academic-blue bg-opacity-10",
+      textColor: "text-academic-blue",
+      valueColor: "text-academic-blue"
     },
     {
       title: "Reports Generated",
