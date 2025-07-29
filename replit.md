@@ -6,6 +6,15 @@ This is a full-stack TypeScript application built for managing academic report c
 
 ## Recent Changes
 
+**July 29, 2025**
+- ✓ Successfully configured separate server setup for development
+- ✓ Backend API now runs on port 3001 in development mode
+- ✓ Frontend Vite dev server runs on port 5000 with API proxy configuration
+- ✓ Created separate server scripts and configuration files for independent development
+- ✓ Maintained production build compatibility (both servers on port 5000)
+- ✓ Added comprehensive documentation for separate server development workflow
+- ✓ Enhanced development experience with concurrent server management
+
 **July 28, 2025**
 - ✓ Updated record counting system to count unique students instead of total grade records
 - ✓ Modified backend upload processing to count distinct students for validation
