@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertUserSchema } from "@shared/schema";
+import { InsertUser } from "@shared/types";
 import { z } from "zod";
 import { GraduationCap, FileText, Upload, BarChart3 } from "lucide-react";
 
@@ -17,7 +17,13 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-const registerSchema = insertUserSchema.extend({
+const registerSchema = z.object({
+  username: z.string(),
+  email: z.string().email(),
+  password: z.string(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+}).extend({
   confirmPassword: z.string().min(1, "Please confirm your password"),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",

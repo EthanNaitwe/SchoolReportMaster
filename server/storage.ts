@@ -4,7 +4,7 @@ import {
   type Grade, type InsertGrade,
   type ReportCard, type InsertReportCard,
   type User, type InsertUser
-} from "@shared/schema";
+} from "@shared/types";
 import { google } from 'googleapis';
 import type { sheets_v4 } from 'googleapis';
 import session from 'express-session';
@@ -15,8 +15,12 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined>;
+  
+  // Seeding (for development/testing)
+  seedUsersIfEmpty(): Promise<void>;
   
   // Session storage
   sessionStore: any;
@@ -103,11 +107,15 @@ export class MemStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(u => u.username === username);
+    return Array.from(this.users.values()).find(user => user.username === username);
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(u => u.email === email);
+    return Array.from(this.users.values()).find(user => user.email === email);
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
   }
 
   async createUser(userData: InsertUser): Promise<User> {
@@ -117,6 +125,7 @@ export class MemStorage implements IStorage {
       id,
       createdAt: new Date(),
       updatedAt: new Date(),
+      isActive: true,
     };
     this.users.set(id, user);
     return user;
@@ -185,11 +194,11 @@ export class MemStorage implements IStorage {
     const id = this.currentUploadId++;
     const upload: Upload = { 
       ...insertUpload,
-      status: insertUpload.status || 'pending',
+      status: (insertUpload as any).status || 'pending',
       id, 
       uploadedAt: new Date(),
-      approvedAt: null,
-      approvedBy: null,
+      approvedAt: undefined,
+      approvedBy: undefined,
       validationResults: null,
       errorCount: 0,
       validCount: 0,
@@ -225,17 +234,17 @@ export class MemStorage implements IStorage {
     const id = this.currentGradeId++;
     const grade: Grade = { 
       ...insertGrade,
-      gpa: insertGrade.gpa || null,
-      numericGrade: insertGrade.numericGrade || null,
-      class: insertGrade.class || null,
+      gpa: insertGrade.gpa ?? undefined,
+      numericGrade: insertGrade.numericGrade ?? undefined,
+      class: insertGrade.class ?? undefined,
       id, 
       createdAt: new Date(),
       isValid: true,
-      validationError: null,
+      validationError: undefined,
       status: 'pending',
-      rejectionReason: null,
-      reviewedBy: null,
-      reviewedAt: null
+      rejectionReason: undefined,
+      reviewedBy: undefined,
+      reviewedAt: undefined
     };
     this.grades.set(id, grade);
     return grade;
@@ -284,7 +293,7 @@ export class MemStorage implements IStorage {
       ...insertReportCard, 
       id, 
       generatedAt: new Date(),
-      pdfPath: null
+      pdfPath: undefined
     };
     this.reportCards.set(id, reportCard);
     return reportCard;
@@ -323,11 +332,44 @@ export class MemStorage implements IStorage {
       successRate: Math.round(successRate * 10) / 10
     };
   }
+
+  // Seeding (for development/testing)
+  async seedUsersIfEmpty(): Promise<void> {
+    try {
+      console.log('🔍 Checking if users need to be seeded in memory storage...');
+      
+      const existingUsers = await this.getAllUsers();
+      
+      if (existingUsers.length > 0) {
+        console.log(`✅ Users already exist in memory (${existingUsers.length} users found), skipping seeding`);
+        console.log('📋 Existing users:', existingUsers.map(u => u.username));
+        return;
+      }
+
+      console.log('🌱 No users found in memory, seeding default admin user...');
+      
+      // Create default admin user
+      const adminUser = await this.createUser({
+        username: 'admin',
+        email: 'admin@tamayuz.edu',
+        password: 'admin123', // This will be hashed by the auth system
+        firstName: 'Admin',
+        lastName: 'User',
+        isActive: true
+      });
+
+      console.log(`✅ Created default admin user: ${adminUser.username} (ID: ${adminUser.id})`);
+      console.log('🎉 Successfully completed user seeding in memory storage');
+      
+    } catch (error) {
+      console.error('❌ Error seeding users in memory storage:', error);
+    }
+  }
 }
 
 export class GoogleSheetsStorage implements IStorage {
-  private sheets: sheets_v4.Sheets;
-  private spreadsheetId: string;
+  private sheets!: sheets_v4.Sheets;
+  private spreadsheetId!: string;
   private auth: any;
   private initialized: boolean = false;
   private initPromise: Promise<void> | null = null;
@@ -339,12 +381,20 @@ export class GoogleSheetsStorage implements IStorage {
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
     });
+
+    // Check if required environment variables are present
+    const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+    const clientEmail = process.env.GOOGLE_SHEETS_CLIENT_EMAIL;
+    let privateKey = process.env.GOOGLE_SHEETS_PRIVATE_KEY;
+
+    if (!spreadsheetId || !clientEmail || !privateKey) {
+      console.warn('Google Sheets environment variables not found, will use in-memory storage');
+      this.initialized = true; // Mark as initialized to prevent initialization attempts
+      return;
+    }
     
-    this.spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID!;
-    
-    // Initialize Google Sheets API with service account credentials
-    const clientEmail = process.env.GOOGLE_SHEETS_CLIENT_EMAIL!;
-    let privateKey = process.env.GOOGLE_SHEETS_PRIVATE_KEY!;
+    // Set the spreadsheet ID
+    this.spreadsheetId = spreadsheetId;
     
     // Handle various private key formats
     if (privateKey.includes('\\n')) {
@@ -359,21 +409,28 @@ export class GoogleSheetsStorage implements IStorage {
     
     // Ensure proper formatting
     if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-      throw new Error('Invalid private key format. Make sure the private key is properly formatted.');
+      console.warn('Invalid private key format, will use in-memory storage');
+      this.initialized = true; // Mark as initialized to prevent initialization attempts
+      return;
     }
     
-    this.auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: clientEmail,
-        private_key: privateKey,
-      },
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-    
-    this.sheets = google.sheets({ version: 'v4', auth: this.auth });
-    
-    // Don't initialize immediately - do it on first use
-    console.log('Google Sheets storage created, will initialize on first use');
+    try {
+      this.auth = new google.auth.GoogleAuth({
+        credentials: {
+          client_email: clientEmail,
+          private_key: privateKey,
+        },
+        scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      });
+      
+      this.sheets = google.sheets({ version: 'v4', auth: this.auth });
+      
+      // Don't initialize immediately - do it on first use
+      console.log('Google Sheets storage created, will initialize on first use');
+    } catch (error) {
+      console.warn('Failed to create Google Sheets auth, will use in-memory storage:', error);
+      this.initialized = true; // Mark as initialized to prevent initialization attempts
+    }
   }
 
   private async ensureInitialized(): Promise<void> {
@@ -384,46 +441,60 @@ export class GoogleSheetsStorage implements IStorage {
       return;
     }
 
+    // If we don't have sheets configured, mark as initialized and return
+    if (!this.sheets || !this.spreadsheetId) {
+      console.log('Google Sheets not configured, using in-memory storage');
+      this.initialized = true;
+      return;
+    }
+
     this.initPromise = this.initializeSheets();
     await this.initPromise;
   }
 
   private async initializeSheets(): Promise<void> {
     try {
-      console.log('Initializing Google Sheets connection...');
+      console.log('🚀 Initializing Google Sheets connection...');
       
       // Test the connection first
       const response = await this.sheets.spreadsheets.get({
         spreadsheetId: this.spreadsheetId,
       });
       
-      console.log(`Connected to spreadsheet: ${response.data.properties?.title}`);
+      console.log(`✅ Connected to spreadsheet: ${response.data.properties?.title}`);
 
       const existingSheets = response.data.sheets?.map(sheet => sheet.properties?.title) || [];
       const requiredSheets = ['users', 'students', 'uploads', 'grades', 'report_cards'];
 
+      console.log(`📊 Existing sheets: ${existingSheets.join(', ')}`);
+      console.log(`📋 Required sheets: ${requiredSheets.join(', ')}`);
+
       // Create missing sheets
       for (const sheetName of requiredSheets) {
         if (!existingSheets.includes(sheetName)) {
-          console.log(`Creating sheet: ${sheetName}`);
+          console.log(`📝 Creating missing sheet: ${sheetName}`);
           await this.createSheet(sheetName);
+        } else {
+          console.log(`✅ Sheet exists: ${sheetName}`);
         }
       }
 
       // Initialize headers for each sheet
+      console.log('📋 Initializing headers for all sheets...');
       await this.initializeHeaders();
       
       // Seed users if none exist  
-      await this.seedUsersIfEmpty();
+      // console.log('👥 Starting user seeding process...');
+      // await this.seedUsersIfEmpty();
       
       this.initialized = true;
-      console.log('Google Sheets initialized successfully');
+      console.log('🎉 Google Sheets initialized successfully');
     } catch (error) {
-      console.error('Error initializing Google Sheets:', error);
+      console.error('❌ Error initializing Google Sheets:', error);
       this.initPromise = null; // Reset so we can retry
       
       // Don't throw - continue with fallback storage
-      console.log('Continuing without Google Sheets initialization');
+      console.log('⚠️ Continuing without Google Sheets initialization');
       this.initialized = true; // Mark as initialized to prevent infinite loops
     }
   }
@@ -456,6 +527,8 @@ export class GoogleSheetsStorage implements IStorage {
 
     for (const [sheetName, headerRow] of Object.entries(headers)) {
       try {
+        console.log(`📋 Checking headers for sheet: ${sheetName}`);
+        
         // Check if headers exist
         const { data } = await this.sheets.spreadsheets.values.get({
           spreadsheetId: this.spreadsheetId,
@@ -464,6 +537,7 @@ export class GoogleSheetsStorage implements IStorage {
 
         if (!data.values || data.values.length === 0 || data.values[0].length === 0) {
           // Add headers
+          console.log(`📝 Adding headers to sheet: ${sheetName}`);
           await this.sheets.spreadsheets.values.update({
             spreadsheetId: this.spreadsheetId,
             range: `${sheetName}!A1`,
@@ -472,9 +546,12 @@ export class GoogleSheetsStorage implements IStorage {
               values: [headerRow]
             }
           });
+          console.log(`✅ Headers added to sheet: ${sheetName}`);
+        } else {
+          console.log(`✅ Headers already exist in sheet: ${sheetName}`);
         }
       } catch (error) {
-        console.error(`Error initializing headers for ${sheetName}:`, error);
+        console.error(`❌ Error initializing headers for ${sheetName}:`, error);
       }
     }
   }
@@ -573,7 +650,7 @@ export class GoogleSheetsStorage implements IStorage {
       status: row[5] || 'pending',
       uploadedBy: row[6] || '',
       uploadedAt: new Date(row[7] || Date.now()),
-      approvedAt: row[8] ? new Date(row[8]) : null,
+      approvedAt: row[8] ? new Date(row[8]) : undefined,
       approvedBy: row[9] || null,
       validationResults: row[10] ? JSON.parse(row[10]) : null,
       errorCount: parseInt(row[11]) || 0,
@@ -601,7 +678,7 @@ export class GoogleSheetsStorage implements IStorage {
       status: row[13] || 'pending',
       rejectionReason: row[14] || null,
       reviewedBy: row[15] || null,
-      reviewedAt: row[16] ? new Date(row[16]) : null,
+      reviewedAt: row[16] ? new Date(row[16]) : undefined,
       createdAt: new Date(row[17] || Date.now())
     };
   }
@@ -644,6 +721,12 @@ export class GoogleSheetsStorage implements IStorage {
   // Users
   async getUser(id: number): Promise<User | undefined> {
     await this.ensureInitialized();
+    
+    // If Google Sheets is not available, return undefined
+    if (!this.sheets || !this.spreadsheetId) {
+      return undefined;
+    }
+    
     const result = await this.findRowByColumn('users', 0, id);
     return result ? this.parseUser(result.row) || undefined : undefined;
   }
@@ -651,6 +734,12 @@ export class GoogleSheetsStorage implements IStorage {
   async getUserByUsername(username: string): Promise<User | undefined> {
     try {
       await this.ensureInitialized();
+      
+      // If Google Sheets is not available, return undefined
+      if (!this.sheets || !this.spreadsheetId) {
+        return undefined;
+      }
+      
       const result = await this.findRowByColumn('users', 1, username);
       return result ? this.parseUser(result.row) || undefined : undefined;
     } catch (error) {
@@ -665,93 +754,130 @@ export class GoogleSheetsStorage implements IStorage {
     return result ? this.parseUser(result.row) || undefined : undefined;
   }
 
+  async getAllUsers(): Promise<User[]> {
+    try {
+      await this.ensureInitialized();
+      
+      if (!this.sheets || !this.spreadsheetId) {
+        return [];
+      }
+      
+      const { data } = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: 'users!A:I',
+      });
+
+      if (!data.values || data.values.length <= 1) {
+        return [];
+      }
+
+      // Skip header row
+      const users = data.values.slice(1)
+        .map(row => this.parseUser(row))
+        .filter(user => user !== null) as User[];
+
+      return users;
+    } catch (error) {
+      console.error('Error getting all users:', error);
+      return [];
+    }
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
-    await this.ensureInitialized();
-    const id = await this.getNextId('users');
-    const user: User = {
-      ...insertUser,
-      id,
-      isActive: insertUser.isActive ?? true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
+    try {
+      await this.ensureInitialized();
+      const id = await this.getNextId('users');
+      const user: User = {
+        ...insertUser,
+        id,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
 
-    const values = [
-      user.id,
-      user.username,
-      user.email,
-      user.password,
-      user.firstName || '',
-      user.lastName || '',
-      user.isActive,
-      user.createdAt.toISOString(),
-      user.updatedAt.toISOString()
-    ];
+      const values = [
+        user.id,
+        user.username,
+        user.email,
+        user.password,
+        user.firstName || '',
+        user.lastName || '',
+        user.isActive,
+        user.createdAt.toISOString(),
+        user.updatedAt.toISOString()
+      ];
 
-    await this.appendRow('users', values);
-    return user;
+      await this.appendRow('users', values);
+      return user;
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw new Error('Failed to create user');
+    }
   }
 
   async updateUser(id: number, userData: Partial<InsertUser>): Promise<User | undefined> {
-    const result = await this.findRowByColumn('users', 0, id);
-    if (!result) return undefined;
+    try {
+      const result = await this.findRowByColumn('users', 0, id);
+      if (!result) return undefined;
 
-    const existing = this.parseUser(result.row);
-    if (!existing) return undefined;
+      const existing = this.parseUser(result.row);
+      if (!existing) return undefined;
 
-    const updated: User = {
-      ...existing,
-      ...userData,
-      updatedAt: new Date()
-    };
+      const updated: User = {
+        ...existing,
+        ...userData,
+        updatedAt: new Date()
+      };
 
-    const values = [
-      updated.id,
-      updated.username,
-      updated.email,
-      updated.password,
-      updated.firstName || '',
-      updated.lastName || '',
-      updated.isActive,
-      updated.createdAt.toISOString(),
-      updated.updatedAt.toISOString()
-    ];
+      const values = [
+        updated.id,
+        updated.username,
+        updated.email,
+        updated.password,
+        updated.firstName || '',
+        updated.lastName || '',
+        updated.isActive,
+        updated.createdAt.toISOString(),
+        updated.updatedAt.toISOString()
+      ];
 
-    await this.updateRow('users', result.rowIndex, values);
-    return updated;
+      await this.updateRow('users', result.rowIndex, values);
+      return updated;
+    } catch (error) {
+      console.error('Error updating user:', error);
+      return undefined;
+    }
   }
 
-  private async seedUsersIfEmpty(): Promise<void> {
+  async seedUsersIfEmpty(): Promise<void> {
     try {
-      console.log('Checking if users need to be seeded...');
+      console.log('🔍 Checking if users need to be seeded...');
       
-      // Check if users already exist
-      const { data } = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.spreadsheetId,
-        range: 'users!A:A',
-      });
-
-      // If there are rows besides header, users already exist
-      if (data.values && data.values.length > 1) {
-        console.log('Users already exist, skipping seeding');
+      // Check if users already exist by getting all users
+      const existingUsers = await this.getAllUsers();
+      console.log('🔍 Existing users:', existingUsers);
+      
+      if (existingUsers.length > 0) {
+        console.log(`✅ Users already exist (${existingUsers.length} users found), skipping seeding`);
+        console.log('📋 Existing users:', existingUsers.map(u => u.username));
         return;
       }
 
-      console.log('No users found, seeding 5 default users...');
+      console.log('🌱 No users found, seeding 5 default users...');
       
-      // Create 5 seed users
+      // Create 5 seed users with hashed passwords
       const seedUsers: InsertUser[] = [
         {
           username: 'admin',
-          email: 'admin@school.edu',
-          password: 'admin123', // In production, this should be hashed
+          email: 'admin@tamayuz.edu',
+          password: 'admin123', // This will be hashed by the auth system
           firstName: 'System',
           lastName: 'Administrator',
           isActive: true
         },
         {
           username: 'teacher1',
-          email: 'sarah.johnson@school.edu',
+          email: 'sarah.johnson@tamayuz.edu',
           password: 'teacher123',
           firstName: 'Sarah',
           lastName: 'Johnson',
@@ -759,7 +885,7 @@ export class GoogleSheetsStorage implements IStorage {
         },
         {
           username: 'teacher2',
-          email: 'mike.davis@school.edu',
+          email: 'mike.davis@tamayuz.edu',
           password: 'teacher123',
           firstName: 'Mike',
           lastName: 'Davis',
@@ -767,7 +893,7 @@ export class GoogleSheetsStorage implements IStorage {
         },
         {
           username: 'coordinator',
-          email: 'lisa.wilson@school.edu',
+          email: 'lisa.wilson@tamayuz.edu',
           password: 'coord123',
           firstName: 'Lisa',
           lastName: 'Wilson',
@@ -775,7 +901,7 @@ export class GoogleSheetsStorage implements IStorage {
         },
         {
           username: 'principal',
-          email: 'john.smith@school.edu',
+          email: 'john.smith@tamayuz.edu',
           password: 'principal123',
           firstName: 'John',
           lastName: 'Smith',
@@ -784,22 +910,30 @@ export class GoogleSheetsStorage implements IStorage {
       ];
 
       // Add each user
-      console.log('Creating users...');
+      console.log('👥 Creating users...');
+      let successCount = 0;
       for (let i = 0; i < seedUsers.length; i++) {
         const userData = seedUsers[i];
-        console.log(`Creating user ${i + 1}: ${userData.username}`);
+        console.log(`📝 Creating user ${i + 1}/${seedUsers.length}: ${userData.username}`);
         try {
-          await this.createUser(userData);
-          console.log(`✓ Created user: ${userData.username}`);
+          const createdUser = await this.createUser(userData);
+          console.log(`✅ Created user: ${createdUser.username} (ID: ${createdUser.id})`);
+          successCount++;
         } catch (error) {
-          console.error(`Error creating user ${userData.username}:`, error);
+          console.error(`❌ Error creating user ${userData.username}:`, error);
           // Continue with other users
         }
       }
 
-      console.log('Successfully completed user seeding process');
+      console.log(`🎉 Successfully completed user seeding process: ${successCount}/${seedUsers.length} users created`);
+      
+      // Verify the seeding worked
+      const finalUsers = await this.getAllUsers();
+      console.log(`🔍 Verification: ${finalUsers.length} users now exist in the system`);
+      console.log('📋 Final user list:', finalUsers.map(u => `${u.username} (${u.email})`));
+      
     } catch (error) {
-      console.error('Error seeding users:', error);
+      console.error('❌ Error seeding users:', error);
       // Don't throw error - continue with application startup
     }
   }
@@ -891,68 +1025,82 @@ export class GoogleSheetsStorage implements IStorage {
   }
 
   async createUpload(insertUpload: InsertUpload): Promise<Upload> {
-    const id = await this.getNextId('uploads');
-    const upload: Upload = {
-      ...insertUpload,
-      status: insertUpload.status || 'pending',
-      id,
-      uploadedAt: new Date(),
-      approvedAt: null,
-      approvedBy: null,
-      validationResults: null,
-      errorCount: 0,
-      validCount: 0,
-      totalCount: 0
-    };
+    try {
+      const id = await this.getNextId('uploads');
+      const upload: Upload = {
+        id,
+        filename: insertUpload.filename,
+        originalName: insertUpload.originalName,
+        fileSize: insertUpload.fileSize,
+        mimeType: insertUpload.mimeType,
+        status: (insertUpload as any).status ?? 'pending',
+        uploadedBy: insertUpload.uploadedBy,
+        uploadedAt: new Date(),
+        approvedAt: (insertUpload as any).approvedAt ?? undefined,
+        approvedBy: (insertUpload as any).approvedBy ?? undefined,
+        validationResults: null,
+        errorCount: 0,
+        validCount: 0,
+        totalCount: 0
+      };
 
-    const values = [
-      upload.id,
-      upload.filename,
-      upload.originalName,
-      upload.fileSize,
-      upload.mimeType,
-      upload.status,
-      upload.uploadedBy,
-      upload.uploadedAt.toISOString(),
-      upload.approvedAt ? upload.approvedAt.toISOString() : '',
-      upload.approvedBy || '',
-      upload.validationResults ? JSON.stringify(upload.validationResults) : '',
-      upload.errorCount,
-      upload.validCount,
-      upload.totalCount
-    ];
+      const values = [
+        upload.id,
+        upload.filename,
+        upload.originalName,
+        upload.fileSize,
+        upload.mimeType,
+        upload.status,
+        upload.uploadedBy,
+        upload.uploadedAt.toISOString(),
+        upload.approvedAt ? upload.approvedAt.toISOString() : '',
+        upload.approvedBy || '',
+        upload.validationResults ? JSON.stringify(upload.validationResults) : '',
+        upload.errorCount,
+        upload.validCount,
+        upload.totalCount
+      ];
 
-    await this.appendRow('uploads', values);
-    return upload;
+      await this.appendRow('uploads', values);
+      return upload;
+    } catch (error) {
+      console.error('Error creating upload:', error);
+      throw new Error('Failed to create upload');
+    }
   }
 
   async updateUpload(id: number, upload: Partial<Upload>): Promise<Upload | undefined> {
-    const result = await this.findRowByColumn('uploads', 0, id);
-    if (!result) return undefined;
+    try {
+      const result = await this.findRowByColumn('uploads', 0, id);
+      if (!result) return undefined;
 
-    const existing = this.parseUpload(result.row);
-    if (!existing) return undefined;
+      const existing = this.parseUpload(result.row);
+      if (!existing) return undefined;
 
-    const updated = { ...existing, ...upload };
-    const values = [
-      updated.id,
-      updated.filename,
-      updated.originalName,
-      updated.fileSize,
-      updated.mimeType,
-      updated.status,
-      updated.uploadedBy,
-      updated.uploadedAt.toISOString(),
-      updated.approvedAt ? updated.approvedAt.toISOString() : '',
-      updated.approvedBy || '',
-      updated.validationResults ? JSON.stringify(updated.validationResults) : '',
-      updated.errorCount,
-      updated.validCount,
-      updated.totalCount
-    ];
+      const updated = { ...existing, ...upload };
+      const values = [
+        updated.id,
+        updated.filename,
+        updated.originalName,
+        updated.fileSize,
+        updated.mimeType,
+        updated.status,
+        updated.uploadedBy,
+        updated.uploadedAt.toISOString(),
+        updated.approvedAt ? updated.approvedAt.toISOString() : '',
+        updated.approvedBy || '',
+        updated.validationResults ? JSON.stringify(updated.validationResults) : '',
+        updated.errorCount,
+        updated.validCount,
+        updated.totalCount
+      ];
 
-    await this.updateRow('uploads', result.rowIndex, values);
-    return updated;
+      await this.updateRow('uploads', result.rowIndex, values);
+      return updated;
+    } catch (error) {
+      console.error('Error updating upload:', error);
+      return undefined;
+    }
   }
 
   // Grades
@@ -998,45 +1146,50 @@ export class GoogleSheetsStorage implements IStorage {
   }
 
   async createGrade(insertGrade: InsertGrade): Promise<Grade> {
-    const id = await this.getNextId('grades');
-    const grade: Grade = {
-      ...insertGrade,
-      gpa: insertGrade.gpa || null,
-      numericGrade: insertGrade.numericGrade || null,
-      class: insertGrade.class || null,
-      id,
-      createdAt: new Date(),
-      isValid: true,
-      validationError: null,
-      status: 'pending',
-      rejectionReason: null,
-      reviewedBy: null,
-      reviewedAt: null
-    };
+    try {
+      const id = await this.getNextId('grades');
+      const grade: Grade = {
+        ...insertGrade,
+        gpa: insertGrade.gpa ?? undefined,
+        numericGrade: insertGrade.numericGrade ?? undefined,
+        class: insertGrade.class ?? undefined,
+        id,
+        createdAt: new Date(),
+        isValid: true,
+        validationError: undefined,
+        status: 'pending',
+        rejectionReason: undefined,
+        reviewedBy: undefined,
+        reviewedAt: undefined
+      };
 
-    const values = [
-      grade.id,
-      grade.uploadId,
-      grade.studentId,
-      grade.studentName,
-      grade.subject,
-      grade.grade,
-      grade.numericGrade || '',
-      grade.gpa || '',
-      grade.class || '',
-      grade.term,
-      grade.academicYear,
-      grade.isValid.toString(),
-      grade.validationError || '',
-      grade.status,
-      grade.rejectionReason || '',
-      grade.reviewedBy || '',
-      grade.reviewedAt ? grade.reviewedAt.toISOString() : '',
-      grade.createdAt.toISOString()
-    ];
+      const values = [
+        grade.id,
+        grade.uploadId,
+        grade.studentId,
+        grade.studentName,
+        grade.subject,
+        grade.grade,
+        grade.numericGrade || '',
+        grade.gpa || '',
+        grade.class || '',
+        grade.term,
+        grade.academicYear,
+        grade.isValid.toString(),
+        grade.validationError || '',
+        grade.status,
+        grade.rejectionReason || '',
+        grade.reviewedBy || '',
+        grade.reviewedAt ? grade.reviewedAt.toISOString() : '',
+        grade.createdAt.toISOString()
+      ];
 
-    await this.appendRow('grades', values);
-    return grade;
+      await this.appendRow('grades', values);
+      return grade;
+    } catch (error) {
+      console.error('Error creating grade:', error);
+      throw new Error('Failed to create grade');
+    }
   }
 
   async createMultipleGrades(insertGrades: InsertGrade[]): Promise<Grade[]> {
@@ -1049,36 +1202,41 @@ export class GoogleSheetsStorage implements IStorage {
   }
 
   async updateGrade(id: number, grade: Partial<Grade>): Promise<Grade | undefined> {
-    const result = await this.findRowByColumn('grades', 0, id);
-    if (!result) return undefined;
+    try {
+      const result = await this.findRowByColumn('grades', 0, id);
+      if (!result) return undefined;
 
-    const existing = this.parseGrade(result.row);
-    if (!existing) return undefined;
+      const existing = this.parseGrade(result.row);
+      if (!existing) return undefined;
 
-    const updated = { ...existing, ...grade };
-    const values = [
-      updated.id,
-      updated.uploadId,
-      updated.studentId,
-      updated.studentName,
-      updated.subject,
-      updated.grade,
-      updated.numericGrade || '',
-      updated.gpa || '',
-      updated.class || '',
-      updated.term,
-      updated.academicYear,
-      updated.isValid.toString(),
-      updated.validationError || '',
-      updated.status,
-      updated.rejectionReason || '',
-      updated.reviewedBy || '',
-      updated.reviewedAt ? updated.reviewedAt.toISOString() : '',
-      updated.createdAt.toISOString()
-    ];
+      const updated = { ...existing, ...grade };
+      const values = [
+        updated.id,
+        updated.uploadId,
+        updated.studentId,
+        updated.studentName,
+        updated.subject,
+        updated.grade,
+        updated.numericGrade || '',
+        updated.gpa || '',
+        updated.class || '',
+        updated.term,
+        updated.academicYear,
+        updated.isValid.toString(),
+        updated.validationError || '',
+        updated.status,
+        updated.rejectionReason || '',
+        updated.reviewedBy || '',
+        updated.reviewedAt ? updated.reviewedAt.toISOString() : '',
+        updated.createdAt.toISOString()
+      ];
 
-    await this.updateRow('grades', result.rowIndex, values);
-    return updated;
+      await this.updateRow('grades', result.rowIndex, values);
+      return updated;
+    } catch (error) {
+      console.error('Error updating grade:', error);
+      return undefined;
+    }
   }
 
   // Report Cards
@@ -1150,7 +1308,7 @@ export class GoogleSheetsStorage implements IStorage {
       ...insertReportCard,
       id,
       generatedAt: new Date(),
-      pdfPath: null
+      pdfPath: undefined
     };
 
     const values = [
@@ -1246,19 +1404,36 @@ class StorageManager {
   private async initializeStorage(): Promise<IStorage> {
     // Try Google Sheets first
     try {
-      console.log('Attempting to initialize Google Sheets storage...');
+      console.log('🚀 Attempting to initialize Google Sheets storage...');
       const sheetsStorage = new GoogleSheetsStorage();
       
       // Test the connection with a simple operation
       await sheetsStorage.getDashboardStats();
       
-      console.log('Google Sheets storage initialized successfully');
+      // Ensure users are seeded in Google Sheets
+      await sheetsStorage.seedUsersIfEmpty();
+      
+      console.log('✅ Google Sheets storage initialized successfully');
       return sheetsStorage;
     } catch (error) {
-      console.warn('Failed to initialize Google Sheets storage:', error);
+      console.warn('⚠️ Failed to initialize Google Sheets storage:', error);
       
-      console.log('Falling back to in-memory storage - data will not persist between restarts');
-      return new MemStorage();
+      console.log('🔄 Falling back to in-memory storage - data will not persist between restarts');
+      const memStorage = new MemStorage();
+      
+      // Ensure in-memory storage has default users for authentication
+      await this.seedDefaultUsers(memStorage);
+      
+      return memStorage;
+    }
+  }
+
+  private async seedDefaultUsers(storage: MemStorage): Promise<void> {
+    try {
+      console.log('🌱 Seeding default users in memory storage...');
+      await storage.seedUsersIfEmpty();
+    } catch (error) {
+      console.error('❌ Failed to seed default users:', error);
     }
   }
 }
@@ -1269,12 +1444,22 @@ const storageManager = new StorageManager();
 export const storage: IStorage = new Proxy({} as IStorage, {
   get(target, prop) {
     return async (...args: any[]) => {
-      const storageInstance = await storageManager.getStorage();
-      const method = (storageInstance as any)[prop];
-      if (typeof method === 'function') {
-        return method.apply(storageInstance, args);
+      try {
+        const storageInstance = await storageManager.getStorage();
+        const method = (storageInstance as any)[prop];
+        if (typeof method === 'function') {
+          return method.apply(storageInstance, args);
+        }
+        return method;
+      } catch (error) {
+        console.error(`Storage method ${String(prop)} failed:`, error);
+        // For authentication methods, we need to handle errors gracefully
+        if (prop === 'getUserByUsername' || prop === 'getUser') {
+          console.warn(`Authentication storage method ${String(prop)} failed, returning undefined`);
+          return undefined;
+        }
+        throw error;
       }
-      return method;
     };
   }
 });

@@ -4,7 +4,7 @@ import {
   useMutation,
   UseMutationResult,
 } from "@tanstack/react-query";
-import { insertUserSchema, User as SelectUser, InsertUser } from "@shared/schema";
+import { User as SelectUser, InsertUser } from "@shared/types";
 import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -33,8 +33,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest("POST", "/api/login", credentials);
-      return await res.json();
+      console.log('Attempting login with credentials:', { username: credentials.username });
+      
+      try {
+        const res = await apiRequest("POST", "/api/login", credentials);
+        const userData = await res.json();
+        console.log('Login successful:', userData);
+        return userData;
+      } catch (error) {
+        console.error('Login request failed:', error);
+        
+        // Provide more specific error messages
+        if (error.message.includes('401')) {
+          throw new Error('Invalid username or password');
+        } else if (error.message.includes('500')) {
+          throw new Error('Server error - please try again later');
+        } else if (error.message.includes('fetch')) {
+          throw new Error('Network error - please check your connection');
+        } else {
+          throw new Error(`Login failed: ${error.message}`);
+        }
+      }
     },
     onSuccess: (user: SelectUser) => {
       queryClient.setQueryData(["/api/user"], user);
@@ -44,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     },
     onError: (error: Error) => {
+      console.error('Login mutation error:', error);
       toast({
         title: "Login failed",
         description: error.message,

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Download, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Grade, Upload } from "@shared/schema";
+import type { Grade, Upload } from "@shared/types";
 
 interface PDFPreviewModalProps {
   isOpen: boolean;

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check, Clock, FileText, Upload as UploadIcon } from "lucide-react";
-import type { Upload } from "@shared/schema";
+import type { Upload } from "@shared/types";
 
 interface WorkflowStatusProps {
   uploadId: number | null;

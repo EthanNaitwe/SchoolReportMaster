@@ -1,6 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes.js";
-import { setupVite, serveStatic, log } from "./vite.js";
+import { registerRoutes } from "./routes.ts";
+import { setupVite, serveStatic, log } from "./vite.ts";
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
@@ -48,7 +48,7 @@ app.use((req, res, next) => {
 (async () => {
   try {
     console.log('Starting server initialization...');
-    const server = await registerRoutes(app);
+    await registerRoutes(app);
     console.log('Routes registered successfully');
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -67,7 +67,7 @@ app.use((req, res, next) => {
 
     // Backend server runs on port 3001 in development, 5000 in production
     const port = process.env.NODE_ENV === 'development' ? 3001 : (process.env.PORT || 5000);
-    server.listen({
+    app.listen({
       port,
       host: "0.0.0.0",
       reusePort: true,

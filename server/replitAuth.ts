@@ -4,7 +4,7 @@ import { Express } from "express";
 import session from "express-session";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage.js";
-import { User as SelectUser } from "@shared/schema";
+import { User as SelectUser } from "@shared/types";
 
 declare global {
   namespace Express {
@@ -46,22 +46,39 @@ export async function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
+        console.log(`Attempting authentication for username: ${username}`);
+        
         const user = await storage.getUserByUsername(username);
+        const users = await storage.getAllUsers();
+
+        console.log("User: =>", user);
+        console.log("At: =>", new Date());
+        console.log("Users: =>", users);
+        console.log("process.env.GOOGLE_SHEETS_SPREADSHEET_ID: =>", process.env.GOOGLE_SHEETS_SPREADSHEET_ID);
+        console.log("process.env.GOOGLE_SHEETS_CLIENT_EMAIL: =>", process.env.GOOGLE_SHEETS_CLIENT_EMAIL);
+        console.log("process.env.GOOGLE_SHEETS_PRIVATE_KEY: =>", process.env.GOOGLE_SHEETS_PRIVATE_KEY);
         
         // Check if user exists and is active
         if (!user || !user.isActive) {
+          console.log(`Authentication failed: User not found or inactive for username: ${username}`);
           return done(null, false, { message: "Invalid username or account is inactive" });
         }
+        
+        console.log(`User found, checking password for: ${username}`);
         
         // Check password
         const isValidPassword = await comparePasswords(password, user.password);
         if (!isValidPassword) {
+          console.log(`Authentication failed: Invalid password for username: ${username}`);
           return done(null, false, { message: "Invalid password" });
         }
         
+        console.log(`Authentication successful for username: ${username}`);
         return done(null, user);
       } catch (error) {
-        return done(error);
+        console.error('Authentication error:', error);
+        // Don't expose internal errors to the client
+        return done(null, false, { message: "Authentication service unavailable" });
       }
     }),
   );
@@ -78,7 +95,8 @@ export async function setupAuth(app: Express) {
       
       done(null, user);
     } catch (error) {
-      done(error);
+      console.error('User deserialization error:', error);
+      done(null, false);
     }
   });
 
@@ -98,29 +116,22 @@ export async function setupAuth(app: Express) {
     });
   });
 
-  app.post("/api/logout", (req, res, next) => {
+  app.post("/api/logout", (req, res) => {
     req.logout((err) => {
-      if (err) return next(err);
-      res.sendStatus(200);
+      if (err) {
+        console.error('Logout error:', err);
+        return res.status(500).json({ message: "Logout failed" });
+      }
+      res.json({ message: "Logged out successfully" });
     });
   });
 
-  app.get("/api/user", (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const user = req.user!;
-    res.json({ 
-      id: user.id, 
-      username: user.username, 
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName
-    });
-  });
+  console.log('Authentication setup completed');
 }
 
 export function isAuthenticated(req: any, res: any, next: any) {
   if (req.isAuthenticated()) {
     return next();
   }
-  res.status(401).json({ message: "Unauthorized" });
+  res.status(401).json({ message: "Authentication required" });
 }

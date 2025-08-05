@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { CloudUpload, FolderOpen, FileSpreadsheet, MoreVertical, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Upload } from "@shared/schema";
+import type { Upload } from "@shared/types";
 
 interface UploadZoneProps {
   onUploadSuccess: (uploadId: number) => void;

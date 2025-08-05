@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { FileText, Download, Plus, CheckSquare, FolderOutput, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { ReportCard, Upload } from "@shared/schema";
+import type { ReportCard, Upload } from "@shared/types";
 
 interface ReportsSidebarProps {
   onGeneratePDF: (uploadId: number, studentId: string) => void;

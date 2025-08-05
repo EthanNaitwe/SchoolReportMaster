@@ -1,11 +1,10 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
 import { storage } from "./storage.js";
 import { setupAuth, isAuthenticated } from "./replitAuth.js";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import PDFDocument from "pdfkit";
-import { insertUploadSchema, insertGradeSchema } from "@shared/schema";
+import { insertUploadSchema, insertGradeSchema } from "@shared/schemas";
 import { z } from "zod";
 
 // Configure multer for file uploads
@@ -123,8 +122,96 @@ function calculateGPA(grade: string): string {
   return gpaMap[grade] || '0.0';
 }
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express): Promise<void> {
   console.log('Setting up authentication...');
+  
+  // Health check endpoint
+  app.get('/api/health', async (req, res) => {
+    try {
+      // Test storage connection
+      const stats = await storage.getDashboardStats();
+      res.json({ 
+        status: 'healthy', 
+        storage: 'connected',
+        timestamp: new Date().toISOString(),
+        stats 
+      });
+    } catch (error) {
+      console.error('Health check failed:', error);
+      res.status(500).json({ 
+        status: 'unhealthy', 
+        storage: 'disconnected',
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
+  // Seeding endpoint (for development/testing)
+  app.post('/api/seed/users', async (req, res) => {
+    try {
+      console.log('🌱 Manual seeding request received');
+      
+      // Get current users
+      const existingUsers = await storage.getAllUsers();
+      console.log(`📋 Current users: ${existingUsers.length}`);
+      
+      // Trigger seeding
+      await storage.seedUsersIfEmpty();
+      
+      // Get updated users
+      const updatedUsers = await storage.getAllUsers();
+      console.log(`📋 Updated users: ${updatedUsers.length}`);
+      
+      res.json({ 
+        success: true,
+        message: 'User seeding completed',
+        previousCount: existingUsers.length,
+        currentCount: updatedUsers.length,
+        users: updatedUsers.map(u => ({ id: u.id, username: u.username, email: u.email })),
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('❌ Seeding failed:', error);
+      res.status(500).json({ 
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
+  // Debug endpoint to check current users
+  app.get('/api/debug/users', async (req, res) => {
+    try {
+      console.log('🔍 Debug users request received');
+      
+      const users = await storage.getAllUsers();
+      console.log(`📋 Found ${users.length} users`);
+      
+      res.json({ 
+        success: true,
+        count: users.length,
+        users: users.map(u => ({ 
+          id: u.id, 
+          username: u.username, 
+          email: u.email, 
+          firstName: u.firstName,
+          lastName: u.lastName,
+          isActive: u.isActive,
+          createdAt: u.createdAt
+        })),
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('❌ Debug users failed:', error);
+      res.status(500).json({ 
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
   
   // Auth middleware
   try {
@@ -132,7 +219,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log('Authentication setup completed');
   } catch (error) {
     console.error('Error setting up authentication:', error);
-    throw error;
+    // Don't throw here - continue with basic routes
+    console.log('Continuing without authentication setup');
   }
 
   // Auth routes
@@ -550,8 +638,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  console.log('Creating HTTP server...');
-  const httpServer = createServer(app);
-  console.log('HTTP server created successfully');
-  return httpServer;
+  console.log('Routes registered successfully');
 }
